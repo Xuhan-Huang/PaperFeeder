@@ -1,0 +1,158 @@
+"""
+Configuration management for the paper assistant.
+"""
+
+from __future__ import annotations
+
+import os
+import yaml
+from dotenv import load_dotenv
+
+# 自动加载 .env 文件
+load_dotenv()
+from dataclasses import dataclass, field
+from typing import Optional
+
+
+@dataclass
+class Config:
+    # LLM settings (通用配置，支持任意 OpenAI 兼容 API)
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = "gpt-4o-mini"
+    
+    # 常用预设:
+    # OpenAI:    base_url="https://api.openai.com/v1", model="gpt-4o-mini"
+    # Claude:    base_url="https://api.anthropic.com/v1", model="claude-sonnet-4-20250514"
+    # DeepSeek:  base_url="https://api.deepseek.com/v1", model="deepseek-chat"
+    # Gemini:    base_url="https://generativelanguage.googleapis.com/v1beta/openai", model="gemini-2.0-flash"
+    # Qwen:      base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", model="qwen-turbo"
+    # Local:     base_url="http://localhost:11434/v1", model="llama3"
+    
+    # Email settings
+    resend_api_key: str = ""
+    email_to: str = ""
+    email_from: str = "papers@yourdomain.com"
+    
+    # arXiv settings (fewer categories = faster queries)
+    arxiv_categories: list[str] = field(default_factory=lambda: [
+        "cs.LG",   # Machine Learning
+        "cs.CL",   # Computation and Language  
+        # "cs.CV",   # Computer Vision - 可选，取消注释来启用
+        # "cs.AI",   # Artificial Intelligence - 可选
+        # "stat.ML", # Statistics - Machine Learning - 可选
+    ])
+    
+    # Keywords for filtering (title + abstract)
+    keywords: list[str] = field(default_factory=lambda: [
+        # Generative models
+        "diffusion model", "diffusion language", "flow matching",
+        "generative model", "autoregressive",
+        # LLM reasoning
+        "chain of thought", "reasoning", "llm", "large language model",
+        "in-context learning", "prompt",
+        # Representation learning
+        "representation learning", "contrastive learning", 
+        "self-supervised", "foundation model",
+        # AI Safety
+        "ai safety", "alignment", "rlhf", "red teaming",
+        "jailbreak", "safety benchmark", "harmful",
+        # Specific interests
+        "tokenizer", "tokenization", "continuous token",
+        "latent space", "latent reasoning",
+    ])
+    
+    exclude_keywords: list[str] = field(default_factory=lambda: [
+        # Exclude if you want
+    ])
+    
+    # Research interests description (for LLM filtering/summarization)
+    research_interests: str = """
+    I'm a Master's student researching:
+    1. Generative models, especially diffusion models for language
+    2. LLM reasoning, including chain-of-thought and latent reasoning
+    3. Representation learning and continuous tokenization
+    4. AI safety, including benchmarks and alignment
+    
+    I'm particularly interested in papers that:
+    - Bridge generation and representation learning
+    - Propose new reasoning paradigms for LLMs
+    - Introduce novel safety evaluation methods
+    - Have strong mathematical foundations
+    """
+    
+    # Filtering settings
+    llm_filter_enabled: bool = False  # Enable for fine-grained filtering
+    llm_filter_threshold: int = 30    # Only use LLM filter if > N papers
+    max_papers: int = 20              # Max papers in final report
+    
+    # Full text extraction
+    extract_fulltext: bool = True     # Extract PDF full text
+    fulltext_top_n: int = 5           # Only extract for top N papers (saves time/tokens)
+    
+    # Manual source settings
+    manual_source_enabled: bool = True
+    manual_source_path: str = "manual_papers.json"  # Or D1 connection string
+    
+    # D1 settings (for future chatbot integration)
+    cloudflare_account_id: str = ""
+    cloudflare_api_token: str = ""
+    d1_database_id: str = ""
+    
+    @classmethod
+    def from_yaml(cls, path: str) -> "Config":
+        """Load config from YAML file, with env var overrides."""
+        config_data = {}
+        
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                config_data = yaml.safe_load(f) or {}
+        
+        # Environment variable overrides (for GitHub Actions secrets)
+        env_overrides = {
+            "llm_api_key": os.getenv("LLM_API_KEY") or os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY"),
+            "llm_base_url": os.getenv("LLM_BASE_URL"),
+            "llm_model": os.getenv("LLM_MODEL"),
+            "resend_api_key": os.getenv("RESEND_API_KEY"),
+            "email_to": os.getenv("EMAIL_TO"),
+            "cloudflare_account_id": os.getenv("CLOUDFLARE_ACCOUNT_ID"),
+            "cloudflare_api_token": os.getenv("CLOUDFLARE_API_TOKEN"),
+            "d1_database_id": os.getenv("D1_DATABASE_ID"),
+        }
+        
+        for key, value in env_overrides.items():
+            if value:
+                config_data[key] = value
+        
+        return cls(**config_data)
+    
+    def to_yaml(self, path: str):
+        """Save config to YAML file."""
+        data = {
+            "llm_base_url": self.llm_base_url,
+            "llm_model": self.llm_model,
+            "email_to": self.email_to,
+            "email_from": self.email_from,
+            "arxiv_categories": self.arxiv_categories,
+            "keywords": self.keywords,
+            "exclude_keywords": self.exclude_keywords,
+            "research_interests": self.research_interests,
+            "llm_filter_enabled": self.llm_filter_enabled,
+            "llm_filter_threshold": self.llm_filter_threshold,
+            "max_papers": self.max_papers,
+            "extract_fulltext": self.extract_fulltext,
+            "fulltext_top_n": self.fulltext_top_n,
+            "manual_source_enabled": self.manual_source_enabled,
+            "manual_source_path": self.manual_source_path,
+        }
+        
+        with open(path, "w") as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
+
+
+def create_default_config(path: str = "config.yaml"):
+    """Create a default config file."""
+    config = Config()
+    config.to_yaml(path)
+    print(f"Created default config at {path}")
+    print("Please edit it and add your API keys as environment variables.")
