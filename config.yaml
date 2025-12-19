@@ -1,0 +1,89 @@
+# Daily Paper Assistant Configuration
+# Copy this file to config.yaml and customize
+
+# =============================================================================
+# arXiv categories to monitor
+# =============================================================================
+arxiv_categories:
+  - cs.LG   # Machine Learning
+  - cs.CL   # Computation and Language
+  - cs.CV   # Computer Vision
+  - cs.AI   # Artificial Intelligence
+  - stat.ML # Statistics - Machine Learning
+
+# =============================================================================
+# Keywords for filtering (matches title + abstract)
+# Papers matching ANY keyword will be included
+# =============================================================================
+keywords:
+  # Generative models
+  - diffusion model
+  - diffusion language
+  - flow matching
+  - generative model
+  - autoregressive
+  
+  # LLM reasoning
+  - chain of thought
+  - reasoning
+  - large language model
+  - in-context learning
+  
+  # Representation learning
+  - representation learning
+  - contrastive learning
+  - self-supervised
+  - foundation model
+  
+  # AI Safety
+  - ai safety
+  - alignment
+  - rlhf
+  - red teaming
+  - jailbreak
+  - safety benchmark
+  
+  # Specific interests
+  - tokenizer
+  - tokenization
+  - continuous token
+  - latent space
+  - latent reasoning
+
+# Keywords to exclude
+exclude_keywords: []
+
+# =============================================================================
+# Your research interests (for LLM filtering and summarization)
+# =============================================================================
+research_interests: |
+  I'm a Master's student researching:
+  1. Generative models, especially diffusion models for language
+  2. LLM reasoning, including chain-of-thought and latent reasoning
+  3. Representation learning and continuous tokenization
+  4. AI safety, including benchmarks and alignment
+  
+  I'm particularly interested in papers that:
+  - Bridge generation and representation learning
+  - Propose new reasoning paradigms for LLMs
+  - Introduce novel safety evaluation methods
+  - Have strong mathematical foundations
+
+# =============================================================================
+# Filtering settings
+# =============================================================================
+llm_filter_enabled: false    # Enable LLM-based filtering (costs API calls)
+llm_filter_threshold: 20     # Only use LLM filter if more than N papers
+max_papers: 5               # Maximum papers in final report
+
+# =============================================================================
+# Full text extraction (PDF → text for deeper analysis)
+# =============================================================================
+extract_fulltext: false      # 是否提取全文传给 LLM
+fulltext_top_n: 3            # 只对前 N 篇提取 (省时间和 token)
+
+# =============================================================================
+# Manual paper source
+# =============================================================================
+manual_source_enabled: true
+manual_source_path: "manual_papers.json"

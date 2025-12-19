@@ -1,9 +1,6 @@
 # Environment variables (contains secrets!)
 .env
 
-# Config with personal settings
-config.yaml
-
 # Manual papers (personal data)
 manual_papers.json
 
