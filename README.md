@@ -1,218 +1,369 @@
-# PaperFeeder — Daily Paper Assistant
+# 📚 PaperFeeder
 
-PaperFeeder 自动从 arXiv、HuggingFace Daily Papers 和手动列表抓取论文，使用关键词与 LLM 进行粗筛与精筛，汇总成每日报告并通过邮件发送。适合研究者自动化跟踪感兴趣方向的新进展。
+> **AI Agent for Daily Paper Digest**  
+> Hunt for "The Next Big Thing", despise incremental work.
 
-- 语言：Python 3.10+
-- 目标：自动化抓取、筛选、基于 LLM 的评分与汇报生成
+An intelligent paper recommendation system that automatically fetches, filters, researches, and summarizes academic papers from arXiv and HuggingFace. Powered by LLM agents and community signal enrichment.
 
-主要功能
-- 从 `arXiv` 与 `HuggingFace Daily Papers` 拉取论文
-- 基于关键词的快速召回（title + abstract）
-- 基于 LLM 的粗筛（Coarse Filter）与精筛（Fine Filter）
-- 使用外部研究 API（Tavily）收集社区信号（可选）
-- 生成 HTML 报告并通过 Resend 发邮件（或保存为文件用于调试）
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-快速开始
-1. 克隆并进入仓库
+---
+
+## ✨ Key Features
+
+### 🤖 **AI Agent Workflow**
+Six-stage intelligent pipeline that mimics how a senior researcher screens papers:
+
+```
+Fetch → Keyword Filter → LLM Coarse Filter → Research & Enrichment → LLM Fine Filter → Synthesis
+ (Recall)    (Cast Wide Net)    (Quick Score)      (Community Signals)       (Deep Ranking)     (Report)
+```
+
+### 🔍 **Community Signal Enrichment**
+- Uses **Tavily API** to search GitHub, Reddit, Twitter, HuggingFace
+- Extracts: GitHub stars, community discussions, reproducibility issues
+- Integrates external validation into paper evaluation
+
+### 🎯 **Two-Stage LLM Filtering**
+- **Stage 1 (Coarse)**: Fast screening based on title + abstract → Top 20
+- **Stage 2 (Fine)**: Deep ranking with community signals → Top 3-5
+
+### 📰 **"Editor's Choice" Style Reports**
+- Senior Principal Researcher persona (OpenAI/DeepMind/Anthropic caliber)
+- 犀利点评，中英文夹杂 (Sharp commentary, bilingual)
+- Sections: 🏆 Editor's Choice, 🔬 Deep Dive, 🌀 Signals & Noise
+
+### 🔧 **Flexible & Extensible**
+- Supports any OpenAI-compatible LLM (OpenAI, Claude, Gemini, DeepSeek, Qwen, local models)
+- PDF multimodal input for deep analysis (Claude, Gemini)
+- Customizable research interests and filtering criteria
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.8+
+- API Keys:
+  - **Required**: LLM API key (OpenAI, Claude, etc.)
+  - **Optional**: Tavily API key (for community research), Resend API key (for email)
+
+### Installation
 
 ```bash
-git clone <repo-url>
+# Clone the repository
+git clone https://github.com/gaoxin492/PaperFeeder.git
 cd PaperFeeder
-python -m venv .venv
-source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your API keys
 ```
 
-2. 准备环境变量
-- 复制 `.env.example`（若存在）或在项目根目录创建 `.env`，填入你的 API keys：
+### Configuration
 
-```
-LLM_API_KEY=...
-LLM_FILTER_API_KEY=...
-TAVILY_API_KEY=...
-RESEND_API_KEY=...
-EMAIL_TO=you@example.com
-```
-
-3. 配置 `config.yaml`
-- 复制 `config.example.yaml` 为 `config.yaml` 并根据需要调整关键词、类别与参数（如 `max_papers`、`llm_filter_enabled` 等）。
-
-运行
-- 本地 dry-run（不发邮件，仅生成并保存报告）：
+Create a `.env` file:
 
 ```bash
-python main.py --dry-run
+# LLM Settings (Main - for summarization)
+LLM_API_KEY=sk-xxxxx
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o-mini
+
+# LLM Settings (Filter - for two-stage filtering)
+LLM_FILTER_API_KEY=sk-xxxxx  # Can use cheaper model
+LLM_FILTER_BASE_URL=https://api.openai.com/v1
+LLM_FILTER_MODEL=gpt-4o-mini
+
+# Research & Enrichment (Optional)
+TAVILY_API_KEY=tvly-xxxxx  # Get from https://tavily.com
+
+# Email Delivery (Optional)
+RESEND_API_KEY=re-xxxxx
+EMAIL_FROM=papers@resend.dev
+EMAIL_TO=your@email.com
 ```
 
-- 正式运行（会发送邮件）：
+### Run
 
 ```bash
-python main.py
-```
-
-配置说明（重要字段）
-- `LLM_API_KEY` / `LLM_FILTER_API_KEY`：用于摘要与筛选的 LLM API Key（支持 OpenAI/Anthropic 等兼容后端）。
-- `TAVILY_API_KEY`：可选，若提供将使用 Tavily 的研究 API 获取社区信号（没有则降级为 mock researcher）。
-- `RESEND_API_KEY`：用于通过 Resend 发送邮件。
-- `EMAIL_TO`：接收报告的邮箱地址。
-- `config.yaml`：包含关键词、arXiv 分类、去重/数量上限、是否启用 LLM 过滤等可调参数。
-
-排查问题
-- 看不到 `TAVILY_API_KEY`：确认 `.env` 放在运行目录且 `TAVILY_API_KEY=...` 已设置；`config.py` 会自动加载 `.env` 并把该值注入 `Config`。
-- 报告包含旧论文：arXiv 使用 `published` 字段做过滤，HuggingFace 源可能不做截断，若见到历史论文，请检查 `config.days` 或在 `sources.py` 中添加日期过滤。
-- 网络超时 / arXiv 慢：arXiv 查询可能较慢，脚本里有重试与超时策略；必要时增大 `ClientTimeout` 或降低 `max_results`。
-
-开发与贡献
-- 代码风格：尽量保持清晰、类型注解与早期返回（guard clauses）。
-- 添加新数据源或研究 API 请在 `sources.py` / `researcher.py` 中新增类并遵循 `BaseSource` / `PaperResearcher` 接口。
-
-许可证
-- 请在此处填写你的许可证信息（例如 MIT）。
-
-更多帮助
-- 阅读 `DEPLOY.md` 获取 GitHub Actions / 部署指南，或打开 issue 说明你的问题与日志片段。
-
-# 📚 Daily Paper Assistant
-
-一个自动化的科研论文追踪助手，每天自动搜集、筛选、总结最新论文并发送到你的邮箱。
-
-## ✨ 功能特性
-
-- **多来源聚合**: arXiv、HuggingFace Daily Papers、手动添加
-- **智能筛选**: 关键词匹配 + 可选 LLM 精筛
-- **AI 总结**: Claude 生成论文摘要和研究洞察
-- **自动推送**: 通过 GitHub Actions 定时发送邮件
-- **可扩展**: 预留了作者筛选、单位筛选、Embedding 相似度等接口
-
-## 🚀 快速开始
-
-### 1. 克隆仓库
-
-```bash
-git clone https://github.com/yourusername/paper-assistant.git
-cd paper-assistant
-```
-
-### 2. 安装依赖
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. 配置
-
-```bash
-cp config.example.yaml config.yaml
-# 编辑 config.yaml，设置你的关键词和研究兴趣
-```
-
-### 4. 设置环境变量
-
-```bash
-export ANTHROPIC_API_KEY="your-api-key"
-export RESEND_API_KEY="your-resend-key"
-export EMAIL_TO="your-email@example.com"
-```
-
-### 5. 本地测试
-
-```bash
-# 预览模式（不发送邮件）
+# Dry run (save report to HTML file)
 python main.py --dry-run
 
-# 正常运行
+# Send via email
 python main.py
 
-# 查看更多天的论文
+# Fetch last 3 days
 python main.py --days 3
 ```
 
-## 📧 部署到 GitHub Actions
+---
 
-1. Fork 这个仓库
-2. 在仓库设置中添加 Secrets:
-   - `ANTHROPIC_API_KEY`
-   - `RESEND_API_KEY`
-   - `EMAIL_TO`
-3. 启用 GitHub Actions
-4. 默认每天 UTC 7:00 运行（可在 `.github/workflows/daily-digest.yml` 中修改）
+## 🏗️ Architecture
 
-## 📁 项目结构
+### AI Agent Workflow
 
 ```
-paper-assistant/
-├── main.py              # 主入口
-├── config.py            # 配置管理
-├── models.py            # 数据模型
-├── sources.py           # 论文来源（arXiv, HF, Manual）
-├── filters.py           # 筛选器（关键词, LLM, 作者）
-├── summarizer.py        # Claude 摘要生成
-├── emailer.py           # 邮件发送
-├── config.yaml          # 配置文件
-├── manual_papers.json   # 手动添加的论文
-└── .github/workflows/   # GitHub Actions
+┌─────────────────────────────────────────────────────────────┐
+│ Stage 1: FETCH (Recall)                                      │
+│ • arXiv (cs.LG, cs.CL, cs.CV, etc.)                         │
+│ • HuggingFace Daily Papers                                   │
+│ • Manual additions                                           │
+└────────────────────┬────────────────────────────────────────┘
+                     │ ~50-100 papers
+┌────────────────────▼────────────────────────────────────────┐
+│ Stage 2: KEYWORD FILTER (Cast Wide Net)                     │
+│ • Match keywords in title + abstract                        │
+│ • Exclude noise (medical, hardware, etc.)                   │
+│ • Strategy: 宁可错杀，不可漏过                              │
+└────────────────────┬────────────────────────────────────────┘
+                     │ ~30-50 papers
+┌────────────────────▼────────────────────────────────────────┐
+│ Stage 3: LLM COARSE FILTER (Quick Score)                    │
+│ • Input: Title + Abstract + Authors                         │
+│ • Criteria: Relevance, Novelty, Clarity                     │
+│ • Output: Scores (0-10), Top 20 candidates                  │
+└────────────────────┬────────────────────────────────────────┘
+                     │ ~20 papers
+┌────────────────────▼────────────────────────────────────────┐
+│ Stage 4: RESEARCH & ENRICHMENT (Community Signals)          │
+│ • Tavily search: GitHub, Reddit, Twitter, HuggingFace       │
+│ • Extract: Stars, discussions, reproducibility              │
+│ • Store in paper.research_notes                             │
+└────────────────────┬────────────────────────────────────────┘
+                     │ 20 papers (enriched)
+┌────────────────────▼────────────────────────────────────────┐
+│ Stage 5: LLM FINE FILTER (Deep Ranking)                     │
+│ • Input: Title + Abstract + Authors + Community Signals     │
+│ • Criteria: Surprise, Significance, External Validation     │
+│ • Output: Top 3-5 papers with detailed reasons              │
+└────────────────────┬────────────────────────────────────────┘
+                     │ 3-5 papers
+┌────────────────────▼────────────────────────────────────────┐
+│ Stage 6: SYNTHESIS (Report Generation)                      │
+│ • Senior Principal Researcher persona                       │
+│ • PDF multimodal input (if supported)                       │
+│ • Output: HTML report with MathJax support                  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 🔧 配置说明
+### Module Overview
 
-### 关键词配置
-
-```yaml
-keywords:
-  - diffusion model
-  - chain of thought
-  - ai safety
+```
+PaperFeeder/
+├── main.py              # AI Agent orchestration
+├── sources.py           # Paper fetchers (arXiv, HuggingFace, Manual)
+├── filters.py           # Two-stage LLM filtering
+├── researcher.py        # Tavily-powered community research (NEW)
+├── summarizer.py        # Report generation with community signals
+├── llm_client.py        # Universal LLM client (OpenAI-compatible)
+├── emailer.py           # Email delivery (Resend, SendGrid, File)
+├── models.py            # Data models (Paper, Author, etc.)
+├── config.py            # Configuration management
+└── config.yaml          # User configuration
 ```
 
-论文标题或摘要匹配任一关键词即被选中。
+---
 
-### 研究兴趣描述
+## 📖 Usage Guide
 
-用于 LLM 筛选和生成更相关的总结：
+### Customize Research Interests
+
+Edit `config.yaml`:
 
 ```yaml
 research_interests: |
-  我的研究方向包括：
-  1. 扩散模型，特别是语言扩散模型
-  2. LLM 推理，包括 Chain-of-Thought
-  ...
+  You are a Senior Principal Researcher at a top-tier AI lab.
+  
+  ## What You're Hunting For
+  1. Paradigm Shifts: Papers that challenge existing dogmas
+  2. First-Principles Elegance: Strong mathematical foundations
+  3. Scaling Insights: What actually works at scale
+  
+  ## Specific Technical Interests
+  - Generative Models: Diffusion, Flow Matching, Autoregressive
+  - Reasoning & System 2: CoT, Latent Reasoning, Test-time Compute
+  - Representation Learning: JEPA, Contrastive Learning
+  - AI Safety & Alignment: Interpretability, Scalable Oversight
+  
+  ## What You DESPISE
+  - Incremental SOTA chasing
+  - Prompt engineering as research
+  - Pure benchmarks without insights
 ```
 
-### LLM 筛选（可选）
-
-当论文太多时，可启用 LLM 二次筛选：
+### Configure Keywords
 
 ```yaml
-llm_filter_enabled: true
-llm_filter_threshold: 30  # 超过30篇时启用
+keywords:
+  # Tier 1: Precision strikes
+  - diffusion language model
+  - test-time compute
+  - mechanistic interpretability
+  
+  # Tier 2: Wide net (pair with exclude_keywords)
+  - LLM
+  - scaling law
+  - foundation model
+
+exclude_keywords:
+  - medical
+  - biomedical
+  - 3D
+  - video generation
 ```
 
-## 📝 手动添加论文
+### Use Different LLMs
 
-编辑 `manual_papers.json`：
+```bash
+# OpenAI
+export LLM_BASE_URL=https://api.openai.com/v1
+export LLM_MODEL=gpt-4o
+
+# Claude (via Anthropic API)
+export LLM_BASE_URL=https://api.anthropic.com/v1
+export LLM_MODEL=claude-sonnet-4-20250514
+
+# DeepSeek
+export LLM_BASE_URL=https://api.deepseek.com/v1
+export LLM_MODEL=deepseek-chat
+
+# Gemini (via OpenAI-compatible endpoint)
+export LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+export LLM_MODEL=gemini-2.0-flash-exp
+
+# Local (Ollama)
+export LLM_BASE_URL=http://localhost:11434/v1
+export LLM_MODEL=llama3
+```
+
+### Cost Optimization
+
+Use a **cheaper model for filtering**, stronger model for summarization:
+
+```bash
+# Filtering (called 2x per paper) - use cheap model
+export LLM_FILTER_MODEL=gpt-4o-mini
+export LLM_FILTER_BASE_URL=https://api.openai.com/v1
+
+# Summarization (called once) - use better model
+export LLM_MODEL=gpt-4o
+export LLM_BASE_URL=https://api.openai.com/v1
+```
+
+---
+
+## 🎨 Report Example
+
+### 🏆 Editor's Choice
+
+> **Diffusion Language Models Learn Latent Reasoning**
+> 
+> **Verdict**: 这是我今天看到的唯一有"aha moment"的工作。将discrete diffusion用于推理任务，而不是generation，视角新颖。GitHub已获800+ stars，Reddit上关于"reasoning in latent space"的讨论非常热烈。
+> 
+> **Signal**: GitHub repo with 823 stars. Active Reddit discussion on implications for o1-style reasoning. HuggingFace community highly engaged.
+
+### 🔬 Deep Dive
+
+**👥 Authors**: Zhang et al. | Stanford, OpenAI
+
+**🎯 The "Aha" Moment**: 传统diffusion models用于生成，这篇将其用于推理。Core idea: reasoning是一个在latent space中的iterative refinement过程，而不是token-by-token的autoregressive生成。社区反响热烈，认为这可能是post-CoT时代的新范式。
+
+**🔧 Methodology**: 使用continuous diffusion在embedding space操作，训练时引入"reasoning checkpoints"强制模型学会分步推理。关键trick是引入了specialized noise schedule for logical consistency。
+
+**📊 Reality Check**: GSM8K上达到89.2%（vs GPT-4的 92%），但在multi-hop推理上超越了CoT baseline 12个点。社区指出代码复现较容易，已有3个独立复现。
+
+**💡 My Take**: 值得跟进。如果scaling law成立，这可能是reasoning的新方向。已加入复现队列。
+
+---
+
+## 🛠️ Advanced Features
+
+### PDF Multimodal Input
+
+For Claude and Gemini, full PDF is sent directly to the model:
+
+```yaml
+extract_fulltext: true
+pdf_max_pages: 15  # Limit pages to save tokens
+```
+
+### Manual Paper Additions
+
+Create `manual_papers.json`:
 
 ```json
 {
   "papers": [
     {
-      "url": "https://arxiv.org/abs/2401.00001",
-      "notes": "导师推荐"
+      "title": "My Favorite Paper",
+      "abstract": "...",
+      "url": "https://arxiv.org/abs/2401.xxxxx",
+      "notes": "Recommended by colleague"
     }
   ]
 }
 ```
 
-也可以只添加 URL，系统会自动获取元数据。
+Or just add URLs (metadata auto-fetched):
 
-## 🔮 未来计划
+```json
+{
+  "papers": [
+    "https://arxiv.org/abs/2401.xxxxx",
+    "https://arxiv.org/abs/2402.xxxxx"
+  ]
+}
+```
 
-- [ ] Cloudflare D1 集成（支持 Chatbot 自动添加论文）
-- [ ] Telegram Bot 交互
-- [ ] Embedding 相似度筛选
-- [ ] 作者/单位关注列表
-- [ ] OpenReview 会议论文追踪
-- [ ] 论文阅读进度追踪
+### Disable Community Research
+
+If you don't have Tavily API key:
+
+```bash
+# System will auto-detect and use mock researcher
+unset TAVILY_API_KEY
+python main.py --dry-run
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Areas for improvement:
+
+- [ ] Additional paper sources (Semantic Scholar, OpenReview)
+- [ ] More research enrichment signals (citation counts, author h-index)
+- [ ] Multi-language support
+- [ ] Web UI / Chatbot integration
+- [ ] Vector database for historical papers
+
+---
 
 ## 📄 License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- Inspired by [Karpathy's blog](https://karpathy.github.io/) and the "senior researcher" mindset
+- Built on top of [arXiv API](https://arxiv.org/help/api), [HuggingFace](https://huggingface.co/), and [Tavily](https://tavily.com/)
+- Community feedback from AI research communities on Reddit and Twitter
+
+---
+
+## 📞 Contact
+
+- GitHub: [@gaoxin492](https://github.com/gaoxin492)
+- Issues: [GitHub Issues](https://github.com/gaoxin492/PaperFeeder/issues)
+
+---
+
+**⚡ Pro Tip**: Start with `--dry-run` to preview reports locally, then set up email delivery once you're happy with the filtering!
