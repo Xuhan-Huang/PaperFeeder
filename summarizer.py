@@ -696,7 +696,7 @@ Be ruthless. 宁缺毋滥。INTEGRATE COMMUNITY SIGNALS naturally into your anal
             <div class="header">
                 <h1>📚 Paper Digest</h1>
                 <div class="meta">{today_cn} {weekday} · {len(papers)} papers reviewed</div>
-                <div class="persona">Curated by Senior Principal Researcher · No fluff, no hype</div>
+                <div class="persona">Curated by PaperFeeder · No fluff, no hype</div>
             </div>
             
             <div class="content">
