@@ -1,9 +1,9 @@
 # 📚 PaperFeeder
 
-> **AI Agent for Daily Paper Digest**  
+> **AI Agent for Daily Paper & Blog Digest**  
 > Hunt for "The Next Big Thing", despise incremental work.
 
-An intelligent paper recommendation system that automatically fetches, filters, researches, and summarizes academic papers from arXiv and HuggingFace. Powered by LLM agents and community signal enrichment.
+An intelligent content recommendation system that automatically fetches, filters, researches, and summarizes academic papers from arXiv/HuggingFace **AND blog posts from top AI labs** (OpenAI, Anthropic, DeepMind, etc.). Powered by LLM agents and community signal enrichment.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -13,12 +13,18 @@ An intelligent paper recommendation system that automatically fetches, filters, 
 ## ✨ Key Features
 
 ### 🤖 **AI Agent Workflow**
-Six-stage intelligent pipeline that mimics how a senior researcher screens papers:
+Seven-stage intelligent pipeline that mimics how a senior researcher screens content:
 
 ```
-Fetch → Keyword Filter → LLM Coarse Filter → Research & Enrichment → LLM Fine Filter → Synthesis
- (Recall)    (Cast Wide Net)    (Quick Score)      (Community Signals)       (Deep Ranking)     (Report)
+Fetch Papers → Fetch Blogs → Keyword Filter → LLM Coarse Filter → Research → LLM Fine Filter → Synthesis
+   (arXiv/HF)    (RSS Feeds)   (Cast Wide Net)   (Quick Score)    (Signals)  (Deep Ranking)    (Report)
 ```
+
+### 📝 **NEW: Blog Integration**
+- **Priority Sources**: OpenAI, Anthropic, DeepMind, Google AI, Meta AI, BAIR, Karpathy, Lilian Weng, etc.
+- **Smart Filtering**: Not all blogs are worth reading! LLM filters out marketing fluff and off-topic posts
+- **Deep Analysis**: Top 1-3 blogs get full analysis with Key Insights and Action Items
+- **RSS/Atom Support**: Easy to add custom blogs via `config.yaml`
 
 ### 🔍 **Community Signal Enrichment**
 - Uses **Tavily API** to search GitHub, Reddit, Twitter, HuggingFace
@@ -32,7 +38,7 @@ Fetch → Keyword Filter → LLM Coarse Filter → Research & Enrichment → LLM
 ### 📰 **"Editor's Choice" Style Reports**
 - Senior Principal Researcher persona (OpenAI/DeepMind/Anthropic caliber)
 - 犀利点评，中英文夹杂 (Sharp commentary, bilingual)
-- Sections: 🏆 Editor's Choice, 🔬 Deep Dive, 🌀 Signals & Noise
+- Sections: 📢 Blog Highlights, 🏆 Editor's Choice, 🔬 Deep Dive, 🌀 Signals & Noise
 
 ### 🔧 **Flexible & Extensible**
 - Supports any OpenAI-compatible LLM (OpenAI, Claude, Gemini, DeepSeek, Qwen, local models)
@@ -98,8 +104,11 @@ python main.py --dry-run
 # Send via email
 python main.py
 
-# Fetch last 3 days
-python main.py --days 3
+# Fetch last 3 days of papers, 7 days of blogs
+python main.py --days 3 --blog-days 7
+
+# Disable blog fetching
+python main.py --no-blogs
 ```
 
 ### 📧 Automated Daily Delivery
@@ -125,15 +134,23 @@ Use **GitHub Actions** for **FREE** automated deployment (no server needed):
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Stage 1: FETCH (Recall)                                      │
+│ Stage 1a: FETCH PAPERS (Recall)                             │
 │ • arXiv (cs.LG, cs.CL, cs.CV, etc.)                         │
 │ • HuggingFace Daily Papers                                   │
 │ • Manual additions                                           │
 └────────────────────┬────────────────────────────────────────┘
                      │ ~50-100 papers
+┌────────────────────┴────────────────────────────────────────┐
+│ Stage 1b: FETCH BLOGS (NEW!)                                │
+│ • Priority: OpenAI, Anthropic, DeepMind, Google AI, Meta AI │
+│ • Researchers: Karpathy, Lilian Weng, Chris Olah            │
+│ • Academic: BAIR, Stanford HAI, Distill.pub                 │
+│ • Custom RSS feeds via config.yaml                          │
+└────────────────────┬────────────────────────────────────────┘
+                     │ ~10-20 blog posts
 ┌────────────────────▼────────────────────────────────────────┐
 │ Stage 2: KEYWORD FILTER (Cast Wide Net)                     │
-│ • Match keywords in title + abstract                        │
+│ • Match keywords in title + abstract (papers only)          │
 │ • Exclude noise (medical, hardware, etc.)                   │
 │ • Strategy: 宁可错杀，不可漏过                              │
 └────────────────────┬────────────────────────────────────────┘
@@ -158,10 +175,11 @@ Use **GitHub Actions** for **FREE** automated deployment (no server needed):
 │ • Criteria: Surprise, Significance, External Validation     │
 │ • Output: Top 3-5 papers with detailed reasons              │
 └────────────────────┬────────────────────────────────────────┘
-                     │ 3-5 papers
+                     │ 3-5 papers + blog posts
 ┌────────────────────▼────────────────────────────────────────┐
 │ Stage 6: SYNTHESIS (Report Generation)                      │
 │ • Senior Principal Researcher persona                       │
+│ • Blog filtering: Select Top 1-3 valuable posts             │
 │ • PDF multimodal input (if supported)                       │
 │ • Output: HTML report with MathJax support                  │
 └─────────────────────────────────────────────────────────────┘
@@ -173,9 +191,10 @@ Use **GitHub Actions** for **FREE** automated deployment (no server needed):
 PaperFeeder/
 ├── main.py              # AI Agent orchestration
 ├── sources.py           # Paper fetchers (arXiv, HuggingFace, Manual)
+├── blog_source.py       # Blog fetchers via RSS/Atom (NEW!)
 ├── filters.py           # Two-stage LLM filtering
-├── researcher.py        # Tavily-powered community research (NEW)
-├── summarizer.py        # Report generation with community signals
+├── researcher.py        # Tavily-powered community research
+├── summarizer.py        # Report generation with blog & paper analysis
 ├── llm_client.py        # Universal LLM client (OpenAI-compatible)
 ├── emailer.py           # Email delivery (Resend, SendGrid, File)
 ├── models.py            # Data models (Paper, Author, etc.)
@@ -186,6 +205,57 @@ PaperFeeder/
 ---
 
 ## 📖 Usage Guide
+
+### Configure Blog Sources
+
+Edit `config.yaml`:
+
+```yaml
+# Enable/disable blog fetching
+blogs_enabled: true
+blog_days_back: 7  # How many days back to look
+
+# Which blogs to enable (if not specified, uses all priority blogs)
+enabled_blogs:
+  # === Top AI Labs (Priority - filtered for research value) ===
+  - openai          # OpenAI Blog
+  - anthropic       # Anthropic Blog
+  - deepmind        # Google DeepMind
+  - google_ai       # Google AI Blog
+  - meta_ai         # Meta AI Blog
+  
+  # === Academic Labs ===
+  - bair            # Berkeley AI Research
+  
+  # === Individual Researchers ===
+  - karpathy        # Andrej Karpathy
+  - lilianweng      # Lil'Log (Lilian Weng @ OpenAI)
+  - colah           # Chris Olah
+  - distill         # Distill.pub
+
+# Add your own custom blogs
+custom_blogs:
+  my_favorite_blog:
+    name: "My Favorite AI Blog"
+    feed_url: "https://example.com/feed.xml"
+    website: "https://example.com/blog"
+    priority: true  # true = gets deep analysis
+```
+
+### Pre-configured Blog Sources
+
+| Source | RSS Feed | Type |
+|--------|----------|------|
+| OpenAI | `openai.com/news/rss.xml` | AI Lab |
+| Anthropic | `anthropic.com/rss.xml` | AI Lab |
+| DeepMind | `deepmind.google/blog/rss.xml` | AI Lab |
+| Google AI | `blog.google/technology/ai/rss/` | AI Lab |
+| Meta AI | `ai.meta.com/blog/rss/` | AI Lab |
+| BAIR | `bair.berkeley.edu/blog/feed.xml` | Academic |
+| Karpathy | `karpathy.bearblog.dev/feed/` | Researcher |
+| Lilian Weng | `lilianweng.github.io/index.xml` | Researcher |
+| Chris Olah | `colah.github.io/rss.xml` | Researcher |
+| Distill | `distill.pub/rss.xml` | Community |
 
 ### Customize Research Interests
 
@@ -275,6 +345,23 @@ export LLM_BASE_URL=https://api.openai.com/v1
 
 ## 🎨 Report Example
 
+### 📢 Blog Highlights
+
+> **2025 LLM Year in Review — Andrej Karpathy**
+> 
+> 📍 Andrej Karpathy's Blog
+>
+> **🎯 Why This Matters**: Karpathy 是少数既懂 engineering 又懂 research 的人，他的年度总结是理解 field direction 的最佳 single source。
+>
+> **📌 Key Insights**:
+> - **Reasoning models 崛起**: o1-style models 成为主流，test-time compute scaling 是关键
+> - **Tokenization 仍是瓶颈**: 他认为 continuous tokenization 可能是下一个突破点
+> - **Multimodal 进展**: Vision-language models 从 novelty 变成 commodity
+>
+> **🔗 Action Items**: 去读他提到的 "Scaling Test-Time Compute" 论文，关注 tokenization 研究方向
+
+---
+
 ### 🏆 Editor's Choice
 
 > **Diffusion Language Models Learn Latent Reasoning**
@@ -294,6 +381,16 @@ export LLM_BASE_URL=https://api.openai.com/v1
 **📊 Reality Check**: GSM8K上达到89.2%（vs GPT-4的 92%），但在multi-hop推理上超越了CoT baseline 12个点。社区指出代码复现较容易，已有3个独立复现。
 
 **💡 My Take**: 值得跟进。如果scaling law成立，这可能是reasoning的新方向。已加入复现队列。
+
+### 🌀 Signals & Noise
+
+**📖 Worth Skimming**
+- Google's Year in Review — 快速扫一眼 8 个 breakthrough areas
+
+**🚫 Pass**
+- Chemical Hygiene (Karpathy) — 与 AI 无关的个人博客
+- One in a Million (OpenAI) — 纯 marketing/PR 内容
+- 40 AI Tips (Google) — 面向普通用户，对 researcher 无价值
 
 ---
 
@@ -336,12 +433,13 @@ Or just add URLs (metadata auto-fetched):
 }
 ```
 
-### Disable Community Research
-
-If you don't have Tavily API key:
+### Disable Features
 
 ```bash
-# System will auto-detect and use mock researcher
+# Disable blog fetching
+python main.py --no-blogs
+
+# Disable community research (if no Tavily API key)
 unset TAVILY_API_KEY
 python main.py --dry-run
 ```
@@ -352,6 +450,7 @@ python main.py --dry-run
 
 Contributions welcome! Areas for improvement:
 
+- [x] ~~Blog source integration~~ ✅ Done!
 - [ ] Additional paper sources (Semantic Scholar, OpenReview)
 - [ ] More research enrichment signals (citation counts, author h-index)
 - [ ] Multi-language support
@@ -370,6 +469,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - Inspired by [Karpathy's blog](https://karpathy.github.io/) and the "senior researcher" mindset
 - Built on top of [arXiv API](https://arxiv.org/help/api), [HuggingFace](https://huggingface.co/), and [Tavily](https://tavily.com/)
+- Blog feeds from OpenAI, Anthropic, DeepMind, Google AI, Meta AI, BAIR, and individual researchers
 - Community feedback from AI research communities on Reddit and Twitter
 
 ---
