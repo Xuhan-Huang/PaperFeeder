@@ -415,8 +415,13 @@ HTML 格式：
             
             for i, paper in enumerate(actual_papers, 1):
                 print(f"      [{i}/{len(actual_papers)}] {paper.title[:40]}...")
-                pdf_content, success = await self.client.fetch_pdf_as_base64(paper.pdf_url)
-                if success:
+                pdf_content = await self.client._url_to_base64_async(
+                    paper.pdf_url,
+                    save_debug=getattr(self.client, 'debug_save_pdfs', False),
+                    debug_dir=getattr(self.client, 'debug_pdf_dir', 'debug_pdfs'),
+                    max_pages=getattr(self.client, 'pdf_max_pages', 10)
+                )
+                if pdf_content:
                     paper._pdf_base64 = pdf_content
                     papers_with_pdf.append(paper)
                 else:
