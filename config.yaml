@@ -152,7 +152,7 @@ manual_source_path: "manual_papers.json"
 # Uses seed-based recommendations with optional API key.
 # If API key is absent, unauthenticated requests are still attempted.
 semantic_scholar_enabled: true
-semantic_scholar_max_results: 30
+semantic_scholar_max_results: 50
 semantic_scholar_seeds_path: "semantic_scholar_seeds.json"
 
 # =============================================================================
