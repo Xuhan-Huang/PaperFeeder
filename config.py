@@ -106,6 +106,10 @@ class Config:
     papers_enabled: bool = True            # Enable fetching from paper sources (arXiv, HF, Manual)
     manual_source_enabled: bool = True
     manual_source_path: str = "manual_papers.json"  # Or D1 connection string
+    semantic_scholar_enabled: bool = False
+    semantic_scholar_api_key: str = ""
+    semantic_scholar_max_results: int = 50
+    semantic_scholar_seeds_path: str = "semantic_scholar_seeds.json"
     
     # =============================================================================
     # Blog Source Settings (NEW!)
@@ -155,6 +159,10 @@ class Config:
             "d1_database_id": os.getenv("D1_DATABASE_ID"),
             # Source enablement
             "papers_enabled": os.getenv("PAPERS_ENABLED"),
+            "semantic_scholar_enabled": os.getenv("SEMANTIC_SCHOLAR_ENABLED"),
+            "semantic_scholar_api_key": os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
+            "semantic_scholar_max_results": os.getenv("SEMANTIC_SCHOLAR_MAX_RESULTS"),
+            "semantic_scholar_seeds_path": os.getenv("SEMANTIC_SCHOLAR_SEEDS_PATH"),
             # Blog settings from environment
             "blogs_enabled": os.getenv("BLOGS_ENABLED"),
             "blog_days_back": os.getenv("BLOG_DAYS_BACK"),
@@ -164,10 +172,10 @@ class Config:
         for key, value in env_overrides.items():
             if value is not None:
                 # Handle boolean conversion for source enablement
-                if key in ("blogs_enabled", "papers_enabled"):
+                if key in ("blogs_enabled", "papers_enabled", "semantic_scholar_enabled"):
                     config_data[key] = value.lower() not in ("false", "0", "no", "off")
                 # Handle int conversion for blog_days_back
-                elif key == "blog_days_back":
+                elif key in ("blog_days_back", "semantic_scholar_max_results"):
                     try:
                         config_data[key] = int(value)
                     except ValueError:
@@ -212,6 +220,9 @@ class Config:
             "papers_enabled": self.papers_enabled,
             "manual_source_enabled": self.manual_source_enabled,
             "manual_source_path": self.manual_source_path,
+            "semantic_scholar_enabled": self.semantic_scholar_enabled,
+            "semantic_scholar_max_results": self.semantic_scholar_max_results,
+            "semantic_scholar_seeds_path": self.semantic_scholar_seeds_path,
             # Blog settings
             "blogs_enabled": self.blogs_enabled,
             "blog_days_back": self.blog_days_back,

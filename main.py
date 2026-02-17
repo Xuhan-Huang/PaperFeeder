@@ -14,7 +14,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional, List
 
-from sources import ArxivSource, HuggingFaceSource, ManualSource, BlogSource
+from sources import ArxivSource, HuggingFaceSource, ManualSource, SemanticScholarSource, BlogSource
 from sources.blog_sources import fetch_blog_posts
 from filters import KeywordFilter, LLMFilter
 from researcher import PaperResearcher, MockPaperResearcher
@@ -57,6 +57,18 @@ async def fetch_papers(config: Config, days_back: int = 1) -> List[Paper]:
         manual_papers = await manual_source.fetch()
         papers.extend(manual_papers)
         print(f"   Found {len(manual_papers)} papers")
+
+    # Semantic Scholar recommendations (seed-based)
+    if getattr(config, "semantic_scholar_enabled", False):
+        print("🧠 Fetching from Semantic Scholar recommendations...")
+        s2_source = SemanticScholarSource(
+            api_key=getattr(config, "semantic_scholar_api_key", ""),
+            seeds_path=getattr(config, "semantic_scholar_seeds_path", "semantic_scholar_seeds.json"),
+            max_results=getattr(config, "semantic_scholar_max_results", 50),
+        )
+        s2_papers = await s2_source.fetch()
+        papers.extend(s2_papers)
+        print(f"   Found {len(s2_papers)} papers")
     
     # Deduplicate by arxiv_id or url
     seen = set()
@@ -213,9 +225,10 @@ async def filter_papers_fine(papers: List[Paper], config: Config) -> List[Paper]
         print("   LLM filter disabled, returning all papers")
         return papers[:config.max_papers]
     
-    filter_api_key = config.llm_filter_api_key or config.llm_api_key
-    filter_base_url = config.llm_filter_base_url
-    filter_model = config.llm_filter_model
+    # Fine ranking should use the main model settings.
+    filter_api_key = config.llm_api_key
+    filter_base_url = config.llm_base_url
+    filter_model = config.llm_model
     
     print(f"   🤖 Applying LLM Fine Filter with Community Signals ({filter_model})...")
     llm_filter = LLMFilter(

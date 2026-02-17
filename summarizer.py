@@ -415,6 +415,11 @@ HTML 格式：
             
             for i, paper in enumerate(actual_papers, 1):
                 print(f"      [{i}/{len(actual_papers)}] {paper.title[:40]}...")
+                if not getattr(paper, "pdf_url", None):
+                    failed_pdf_papers.append(paper)
+                    paper._pdf_base64 = None
+                    print("      ⚠️ No pdf_url, fallback to abstract-only")
+                    continue
                 pdf_content = await self.client._url_to_base64_async(
                     paper.pdf_url,
                     save_debug=getattr(self.client, 'debug_save_pdfs', False),
