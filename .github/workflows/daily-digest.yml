@@ -1,9 +1,9 @@
 name: Daily Paper Digest
 
 on:
-  # Run daily at 7:00 AM UTC (adjust for your timezone)
+  # Run daily at 03:00 UTC (11:00 China time)
   schedule:
-    - cron: '43 23 * * *'
+    - cron: '0 3 * * *'
   
   # Allow manual trigger
   workflow_dispatch:
