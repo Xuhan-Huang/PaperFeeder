@@ -108,7 +108,7 @@ class Config:
     manual_source_path: str = "manual_papers.json"  # Or D1 connection string
     semantic_scholar_enabled: bool = False
     semantic_scholar_api_key: str = ""
-    semantic_scholar_max_results: int = 50
+    semantic_scholar_max_results: int = 30
     semantic_scholar_seeds_path: str = "semantic_scholar_seeds.json"
     
     # =============================================================================

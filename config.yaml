@@ -131,7 +131,7 @@ research_interests: |
 # =============================================================================
 llm_filter_enabled: true     # Enable LLM-based filtering
 llm_filter_threshold: 6      # Use LLM filter if keyword-filtered papers > N
-max_papers: 6                # Maximum papers in final report (slightly higher for flexibility)
+max_papers: 10                # Maximum papers in final report (slightly higher for flexibility)
 
 # =============================================================================
 # PDF Multimodal Input
@@ -162,7 +162,7 @@ semantic_scholar_seeds_path: "semantic_scholar_seeds.json"
 blogs_enabled: true
 
 # How many days back to look for blog posts
-blog_days_back: 1
+blog_days_back: 2
 
 # Which blogs to enable
 # If not specified (null), uses all priority blogs by default
