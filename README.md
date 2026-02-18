@@ -8,6 +8,8 @@ An intelligent content recommendation system that automatically fetches, filters
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+📌 **Recent updates:** see [UPDATE.md](UPDATE.md)
+
 ---
 
 ## ✨ Key Features
@@ -433,6 +435,32 @@ Or just add URLs (metadata auto-fetched):
 }
 ```
 
+### Semantic Scholar Recommendations (Seed-Based)
+
+You can inject Semantic Scholar recommendations as an additional source.
+
+1. Configure `config.yaml`:
+
+```yaml
+semantic_scholar_enabled: true
+semantic_scholar_max_results: 30
+semantic_scholar_seeds_path: "semantic_scholar_seeds.json"
+```
+
+2. Create/edit `semantic_scholar_seeds.json`:
+
+```json
+{
+  "positive_paper_ids": ["282913080", "270562552"],
+  "negative_paper_ids": ["283933653"]
+}
+```
+
+Notes:
+- The pipeline auto-normalizes numeric IDs to `CorpusId:<id>` for API compatibility.
+- `positive_paper_ids` controls "more like this"; `negative_paper_ids` suppresses unwanted directions.
+- `SEMANTIC_SCHOLAR_API_KEY` is optional in this implementation; unauthenticated calls are attempted when absent.
+
 ### Disable Features
 
 ```bash
@@ -451,7 +479,8 @@ python main.py --dry-run
 Contributions welcome! Areas for improvement:
 
 - [x] ~~Blog source integration~~ ✅ Done!
-- [ ] Additional paper sources (Semantic Scholar, OpenReview)
+- [x] Additional paper sources (Semantic Scholar) ✅ Done
+- [ ] Additional paper sources (OpenReview)
 - [ ] More research enrichment signals (citation counts, author h-index)
 - [ ] Multi-language support
 - [ ] Web UI / Chatbot integration
