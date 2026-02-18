@@ -192,12 +192,19 @@ enabled_blogs:
   - nvidia_research   # NVIDIA Research (替代 NVIDIA Blog，关注底层论文)
   - alignment_forum   # AI Alignment Forum (对齐领域深度讨论)
   - lesswrong_ai      # LessWrong AI Tag (跨学科 AI 思考)
+  - sakana_ai         # Sakana AI Blog
 
 
 # Custom blogs (add your own RSS feeds)
 # Format: key -> {name, feed_url, website, priority}
 # priority: true = 直接进入报告；false = 参与筛选流程
 custom_blogs:
+  sakana_ai:
+    name: "Sakana AI Blog"
+    feed_url: "https://sakana.ai/feed.xml"
+    website: "https://sakana.ai/blog/"
+    priority: true
+
   # Example: Uncomment to add your own blogs
   # my_favorite_blog:
   #   name: "My Favorite AI Blog"
