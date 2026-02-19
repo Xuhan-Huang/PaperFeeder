@@ -530,6 +530,7 @@ HTML 格式：
             }}
             
             .header {{
+                background-color: #1a1a2e;
                 background: linear-gradient(135deg, #1a1a2e, #16213e);
                 color: #fff;
                 padding: 20px 24px;
@@ -847,12 +848,12 @@ HTML 格式：
             }}
         </style>
     </head>
-    <body>
+        <body>
         <div class="container">
-            <div class="header">
-                <h1>📚 Paper Digest</h1>
-                <div class="meta">{today_cn} {weekday} · {meta_str}</div>
-                <div class="persona">Curated by PaperFeeder · No fluff, no hype</div>
+            <div class="header" style="background-color:#1a1a2e;background-image:linear-gradient(135deg,#1a1a2e,#16213e);color:#ffffff;">
+                <h1 style="color:#ffffff;">📚 Paper Digest</h1>
+                <div class="meta" style="color:#ffffff;">{today_cn} {weekday} · {meta_str}</div>
+                <div class="persona" style="color:#d6d8e0;">Curated by PaperFeeder · No fluff, no hype</div>
             </div>
             
             <div class="content">
