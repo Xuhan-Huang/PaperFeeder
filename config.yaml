@@ -22,8 +22,6 @@ keywords:
   - hierarchical reasoning
   - mathematical reasoning
   - chain of thought
-  # - diffusion language model      # Diffusion for discrete domains - hot frontier
-  # - llada
   - latent reasoning          # Reasoning in latent space, not token space
   - mechanistic interpretability  # Understanding what's inside the black box
   - test-time compute         # Scaling inference, not just training
@@ -31,9 +29,6 @@ keywords:
   - test time training
   - formal language reasoning
   - verifiable coding agent
-  # - tokenizer
-  # - tokenization
-  - system 2
   - AI safety
   - alignment
   - self-evolution
@@ -113,7 +108,6 @@ research_interests: |
   - **Reasoning & System 2**: 
     - Formal language reasoning: theorem proving, symbolic manipulation, code generation using the singal from the formal verifier.
     - Hierarchical Reasoning, Mathematical Reasoning, Chain of Thought, Latent Reasoning.
-    - Inference-time compute scaling (o1-like), Tree Search.
     - Test time training, meta-learning, and fast adaptation. Especially in-context adaptation and learning.
     - Self-evolution and self-play for continual improvement without human data.
 
