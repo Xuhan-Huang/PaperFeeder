@@ -28,6 +28,10 @@ email_preview.html
 *.swp
 *.swo
 
+# Local agent/workflow artifacts
+.codex/
+openspec/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -239,9 +239,9 @@ HTML 格式：
 
         # Papers section prompt
         user_prompt += """
-### Section 1: 🏆 Editor's Choice (Top 1-3 Papers)
+### Section 1: 🏆 Editor's Choice (Top 1-5 Papers)
 
-只选**真正值得读的论文**（不包含博客）。没有就留空，不要凑数。
+只选**真正值得读的论文**（不包含博客，1-5篇）。没有就留空，不要凑数。
 
 每篇包含：
 - **Paper Title** (链接)
