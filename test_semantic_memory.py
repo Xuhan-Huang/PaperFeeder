@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from models import Paper, PaperSource
+from main import _extract_report_urls, _normalize_url_for_match
 from semantic_memory import SemanticMemoryStore
 from sources.paper_sources import SemanticScholarSource
 
@@ -105,6 +106,23 @@ class SemanticScholarSuppressionTests(unittest.TestCase):
             ]
             second = source._apply_seen_suppression(papers)
             self.assertEqual([p.semantic_paper_id for p in second], ["r3"])
+
+
+class ReportMatchTests(unittest.TestCase):
+    def test_extract_report_urls_and_normalize(self):
+        html = """
+        <div>
+          <a href="https://arxiv.org/abs/1234.5678?utm_source=x">paper1</a>
+          <a href='https://example.com/path/'>paper2</a>
+        </div>
+        """
+        urls = _extract_report_urls(html)
+        self.assertIn("https://arxiv.org/abs/1234.5678", urls)
+        self.assertIn("https://example.com/path", urls)
+        self.assertEqual(
+            _normalize_url_for_match("HTTPS://EXAMPLE.com/path/?x=1#frag"),
+            "https://example.com/path",
+        )
 
 
 if __name__ == "__main__":

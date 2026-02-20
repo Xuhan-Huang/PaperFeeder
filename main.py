@@ -11,8 +11,10 @@ from __future__ import annotations
 import asyncio
 import argparse
 import os
+import re
 from datetime import datetime, timedelta
 from typing import Optional, List
+from urllib.parse import urlsplit, urlunsplit
 
 from sources import ArxivSource, HuggingFaceSource, ManualSource, SemanticScholarSource, BlogSource
 from sources.blog_sources import fetch_blog_posts
@@ -106,8 +108,34 @@ async def fetch_papers(config: Config, days_back: int = 1) -> List[Paper]:
     return unique_papers
 
 
-def update_semantic_memory_from_final(final_papers: List[Paper], config: Config) -> None:
-    """Mark selected Semantic Scholar papers as seen and persist memory."""
+def _normalize_url_for_match(url: str) -> str:
+    """Normalize URL for robust report-to-paper matching."""
+    if not url:
+        return ""
+    try:
+        parts = urlsplit(url.strip())
+        scheme = parts.scheme.lower() if parts.scheme else "https"
+        netloc = parts.netloc.lower()
+        path = parts.path.rstrip("/")
+        return urlunsplit((scheme, netloc, path, "", ""))
+    except Exception:
+        return url.strip().lower().rstrip("/")
+
+
+def _extract_report_urls(report_html: str) -> set[str]:
+    """Extract all href URLs from rendered report HTML."""
+    if not report_html:
+        return set()
+    urls = set()
+    for raw in re.findall(r'href=["\']([^"\']+)["\']', report_html, flags=re.IGNORECASE):
+        norm = _normalize_url_for_match(raw)
+        if norm:
+            urls.add(norm)
+    return urls
+
+
+def update_semantic_memory_from_report(final_papers: List[Paper], report_html: str, config: Config) -> None:
+    """Mark only report-visible Semantic Scholar papers as seen and persist memory."""
     if not getattr(config, "semantic_memory_enabled", True):
         return
 
@@ -115,25 +143,39 @@ def update_semantic_memory_from_final(final_papers: List[Paper], config: Config)
     if memory_store is None:
         return
 
-    selected_ids = sorted(
+    report_urls = _extract_report_urls(report_html)
+    s2_final = [
+        p
+        for p in final_papers
+        if getattr(p, "source", None) == PaperSource.SEMANTIC_SCHOLAR
+        and getattr(p, "semantic_paper_id", None)
+    ]
+    if not s2_final:
+        print("   ⭕ Semantic memory: no final Semantic Scholar papers")
+        return
+
+    visible_ids = sorted(
         {
             p.semantic_paper_id
-            for p in final_papers
-            if getattr(p, "source", None) == PaperSource.SEMANTIC_SCHOLAR
-            and getattr(p, "semantic_paper_id", None)
+            for p in s2_final
+            if _normalize_url_for_match(getattr(p, "url", "")) in report_urls
         }
     )
-    if not selected_ids:
-        print("   ⭕ Semantic memory: no selected Semantic Scholar IDs to update")
+    if not visible_ids:
+        print(
+            "   ⭕ Semantic memory: no report-visible Semantic Scholar papers to update "
+            f"(final_selected={len(s2_final)})"
+        )
         return
 
     try:
-        memory_store.mark_seen(selected_ids)
+        memory_store.mark_seen(visible_ids)
         removed = memory_store.prune_expired(getattr(config, "semantic_seen_ttl_days", 30))
         memory_store.save()
         print(
             "   ✅ Semantic memory updated: "
-            f"seen_added={len(selected_ids)}, expired_removed={removed}"
+            f"final_selected={len(s2_final)}, report_visible={len(visible_ids)}, "
+            f"seen_added={len(visible_ids)}, expired_removed={removed}"
         )
     except Exception as e:
         print(f"   ⚠️ Semantic memory update failed (non-blocking): {e}")
@@ -476,14 +518,14 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
         print("\n⚠️ No papers passed fine filter and no blogs. Exiting.")
         return
 
-    # Persist seen-memory for selected Semantic Scholar papers (non-blocking).
-    update_semantic_memory_from_final(final_papers, config)
-    
     # Stage 6: Synthesize (includes all blogs!)
     print("\n" + "=" * 80)
     print("STAGE 6: SYNTHESIS (Report Generation)")
     print("=" * 80)
     report = await summarize_papers(final_papers, config, priority_blogs=all_blogs)
+
+    # Persist seen-memory only for report-visible Semantic Scholar papers (non-blocking).
+    update_semantic_memory_from_report(final_papers, report, config)
     
     # Output/Send
     print("\n" + "=" * 80)
