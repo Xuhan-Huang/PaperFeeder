@@ -110,6 +110,10 @@ class Config:
     semantic_scholar_api_key: str = ""
     semantic_scholar_max_results: int = 30
     semantic_scholar_seeds_path: str = "semantic_scholar_seeds.json"
+    semantic_memory_enabled: bool = True
+    semantic_memory_path: str = "semantic_scholar_memory.json"
+    semantic_seen_ttl_days: int = 30
+    semantic_memory_max_ids: int = 5000
     
     # =============================================================================
     # Blog Source Settings (NEW!)
@@ -163,6 +167,10 @@ class Config:
             "semantic_scholar_api_key": os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
             "semantic_scholar_max_results": os.getenv("SEMANTIC_SCHOLAR_MAX_RESULTS"),
             "semantic_scholar_seeds_path": os.getenv("SEMANTIC_SCHOLAR_SEEDS_PATH"),
+            "semantic_memory_enabled": os.getenv("SEMANTIC_MEMORY_ENABLED"),
+            "semantic_memory_path": os.getenv("SEMANTIC_MEMORY_PATH"),
+            "semantic_seen_ttl_days": os.getenv("SEMANTIC_SEEN_TTL_DAYS"),
+            "semantic_memory_max_ids": os.getenv("SEMANTIC_MEMORY_MAX_IDS"),
             # Blog settings from environment
             "blogs_enabled": os.getenv("BLOGS_ENABLED"),
             "blog_days_back": os.getenv("BLOG_DAYS_BACK"),
@@ -172,10 +180,10 @@ class Config:
         for key, value in env_overrides.items():
             if value is not None:
                 # Handle boolean conversion for source enablement
-                if key in ("blogs_enabled", "papers_enabled", "semantic_scholar_enabled"):
+                if key in ("blogs_enabled", "papers_enabled", "semantic_scholar_enabled", "semantic_memory_enabled"):
                     config_data[key] = value.lower() not in ("false", "0", "no", "off")
                 # Handle int conversion for blog_days_back
-                elif key in ("blog_days_back", "semantic_scholar_max_results"):
+                elif key in ("blog_days_back", "semantic_scholar_max_results", "semantic_seen_ttl_days", "semantic_memory_max_ids"):
                     try:
                         config_data[key] = int(value)
                     except ValueError:
@@ -223,6 +231,10 @@ class Config:
             "semantic_scholar_enabled": self.semantic_scholar_enabled,
             "semantic_scholar_max_results": self.semantic_scholar_max_results,
             "semantic_scholar_seeds_path": self.semantic_scholar_seeds_path,
+            "semantic_memory_enabled": self.semantic_memory_enabled,
+            "semantic_memory_path": self.semantic_memory_path,
+            "semantic_seen_ttl_days": self.semantic_seen_ttl_days,
+            "semantic_memory_max_ids": self.semantic_memory_max_ids,
             # Blog settings
             "blogs_enabled": self.blogs_enabled,
             "blog_days_back": self.blog_days_back,

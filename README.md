@@ -445,6 +445,10 @@ You can inject Semantic Scholar recommendations as an additional source.
 semantic_scholar_enabled: true
 semantic_scholar_max_results: 30
 semantic_scholar_seeds_path: "semantic_scholar_seeds.json"
+semantic_memory_enabled: true
+semantic_memory_path: "semantic_scholar_memory.json"
+semantic_seen_ttl_days: 30
+semantic_memory_max_ids: 5000
 ```
 
 2. Create/edit `semantic_scholar_seeds.json`:
@@ -460,6 +464,8 @@ Notes:
 - The pipeline auto-normalizes numeric IDs to `CorpusId:<id>` for API compatibility.
 - `positive_paper_ids` controls "more like this"; `negative_paper_ids` suppresses unwanted directions.
 - `SEMANTIC_SCHOLAR_API_KEY` is optional in this implementation; unauthenticated calls are attempted when absent.
+- V1 anti-repetition memory marks only final-selected Semantic Scholar papers as `seen` and suppresses repeats for `semantic_seen_ttl_days`.
+- `semantic_scholar_memory.json` is persisted by GitHub Actions (commit-on-diff) to keep state across scheduled runs.
 
 ### Disable Features
 

@@ -21,7 +21,8 @@ from researcher import PaperResearcher, MockPaperResearcher
 from summarizer import PaperSummarizer
 from emailer import ResendEmailer, FileEmailer
 from config import Config
-from models import Paper
+from models import Paper, PaperSource
+from semantic_memory import SemanticMemoryStore
 
 # Check if blog sources are available (feedparser required)
 try:
@@ -59,16 +60,38 @@ async def fetch_papers(config: Config, days_back: int = 1) -> List[Paper]:
         print(f"   Found {len(manual_papers)} papers")
 
     # Semantic Scholar recommendations (seed-based)
+    setattr(config, "_semantic_memory_store", None)
     if getattr(config, "semantic_scholar_enabled", False):
         print("🧠 Fetching from Semantic Scholar recommendations...")
+        memory_store = None
+        if getattr(config, "semantic_memory_enabled", True):
+            memory_store = SemanticMemoryStore(
+                path=getattr(config, "semantic_memory_path", "semantic_scholar_memory.json"),
+                max_ids=getattr(config, "semantic_memory_max_ids", 5000),
+            )
+            memory_store.load()
+            pruned = memory_store.prune_expired(getattr(config, "semantic_seen_ttl_days", 30))
+            if pruned:
+                print(f"      🧹 Semantic memory pruned expired seen IDs: {pruned}")
         s2_source = SemanticScholarSource(
             api_key=getattr(config, "semantic_scholar_api_key", ""),
             seeds_path=getattr(config, "semantic_scholar_seeds_path", "semantic_scholar_seeds.json"),
             max_results=getattr(config, "semantic_scholar_max_results", 50),
+            memory_store=memory_store,
+            seen_ttl_days=getattr(config, "semantic_seen_ttl_days", 30),
         )
         s2_papers = await s2_source.fetch()
         papers.extend(s2_papers)
         print(f"   Found {len(s2_papers)} papers")
+        stats = getattr(s2_source, "last_stats", None)
+        if stats:
+            print(
+                "   📊 Semantic Scholar stats: "
+                f"total={stats.get('total', 0)}, "
+                f"suppressed={stats.get('suppressed', 0)}, "
+                f"forwarded={stats.get('forwarded', 0)}"
+            )
+        setattr(config, "_semantic_memory_store", memory_store)
     
     # Deduplicate by arxiv_id or url
     seen = set()
@@ -81,6 +104,39 @@ async def fetch_papers(config: Config, days_back: int = 1) -> List[Paper]:
     
     print(f"✅ Total unique papers: {len(unique_papers)}")
     return unique_papers
+
+
+def update_semantic_memory_from_final(final_papers: List[Paper], config: Config) -> None:
+    """Mark selected Semantic Scholar papers as seen and persist memory."""
+    if not getattr(config, "semantic_memory_enabled", True):
+        return
+
+    memory_store = getattr(config, "_semantic_memory_store", None)
+    if memory_store is None:
+        return
+
+    selected_ids = sorted(
+        {
+            p.semantic_paper_id
+            for p in final_papers
+            if getattr(p, "source", None) == PaperSource.SEMANTIC_SCHOLAR
+            and getattr(p, "semantic_paper_id", None)
+        }
+    )
+    if not selected_ids:
+        print("   ⭕ Semantic memory: no selected Semantic Scholar IDs to update")
+        return
+
+    try:
+        memory_store.mark_seen(selected_ids)
+        removed = memory_store.prune_expired(getattr(config, "semantic_seen_ttl_days", 30))
+        memory_store.save()
+        print(
+            "   ✅ Semantic memory updated: "
+            f"seen_added={len(selected_ids)}, expired_removed={removed}"
+        )
+    except Exception as e:
+        print(f"   ⚠️ Semantic memory update failed (non-blocking): {e}")
 
 
 async def fetch_blogs(config: Config, days_back: int = 7) -> tuple[List[Paper], List[Paper]]:
@@ -419,6 +475,9 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
     if not final_papers and not all_blogs:
         print("\n⚠️ No papers passed fine filter and no blogs. Exiting.")
         return
+
+    # Persist seen-memory for selected Semantic Scholar papers (non-blocking).
+    update_semantic_memory_from_final(final_papers, config)
     
     # Stage 6: Synthesize (includes all blogs!)
     print("\n" + "=" * 80)

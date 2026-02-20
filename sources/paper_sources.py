@@ -15,6 +15,7 @@ import re
 
 from models import Paper, Author, PaperSource
 from .base import BaseSource
+from semantic_memory import SemanticMemoryStore
 
 
 class ArxivSource(BaseSource):
@@ -356,10 +357,19 @@ class SemanticScholarSource(BaseSource):
         api_key: str = "",
         seeds_path: str = "semantic_scholar_seeds.json",
         max_results: int = 50,
+        memory_store: SemanticMemoryStore | None = None,
+        seen_ttl_days: int = 30,
     ):
         self.api_key = api_key or ""
         self.seeds_path = seeds_path
         self.max_results = max_results
+        self.memory_store = memory_store
+        self.seen_ttl_days = seen_ttl_days
+        self.last_stats: Dict[str, int] = {
+            "total": 0,
+            "suppressed": 0,
+            "forwarded": 0,
+        }
 
     async def fetch(self, **kwargs) -> List[Paper]:
         seeds = self._load_seeds()
@@ -411,7 +421,8 @@ class SemanticScholarSource(BaseSource):
                             return []
 
                         data = await response.json()
-                        return self._to_papers(data)
+                        papers = self._to_papers(data)
+                        return self._apply_seen_suppression(papers)
 
             except asyncio.TimeoutError:
                 if attempt < max_retries - 1:
@@ -504,6 +515,7 @@ class SemanticScholarSource(BaseSource):
                         authors=authors,
                         published_date=published_date,
                         notes=f"Semantic Scholar paperId={paper_id}",
+                        semantic_paper_id=paper_id,
                         pdf_url=pdf_url,
                     )
                 )
@@ -512,6 +524,36 @@ class SemanticScholarSource(BaseSource):
                 continue
 
         return papers
+
+    def _apply_seen_suppression(self, papers: List[Paper]) -> List[Paper]:
+        total = len(papers)
+        if not self.memory_store:
+            self.last_stats = {"total": total, "suppressed": 0, "forwarded": total}
+            return papers
+
+        try:
+            ids = [p.semantic_paper_id for p in papers if getattr(p, "semantic_paper_id", None)]
+            suppressed_ids = self.memory_store.filter_recently_seen(ids, ttl_days=self.seen_ttl_days)
+            filtered = [
+                p for p in papers
+                if not getattr(p, "semantic_paper_id", None) or p.semantic_paper_id not in suppressed_ids
+            ]
+            suppressed = total - len(filtered)
+            self.last_stats = {
+                "total": total,
+                "suppressed": suppressed,
+                "forwarded": len(filtered),
+            }
+            print(
+                "      📉 Semantic Scholar suppression: "
+                f"total={total}, suppressed={suppressed}, forwarded={len(filtered)}"
+            )
+            return filtered
+        except Exception as e:
+            # Fail open so digest generation remains stable.
+            print(f"      ⚠️ Semantic Scholar suppression failed, proceeding without suppression: {e}")
+            self.last_stats = {"total": total, "suppressed": 0, "forwarded": total}
+            return papers
 
 
 class OpenReviewSource(BaseSource):

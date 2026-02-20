@@ -1,5 +1,8 @@
 name: Daily Paper Digest
 
+permissions:
+  contents: write
+
 on:
   # Run daily at 03:00 UTC (11:00 China time)
   schedule:
@@ -25,6 +28,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -52,6 +57,10 @@ jobs:
           # 兼容旧配置
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Semantic Scholar memory (optional overrides)
+          SEMANTIC_MEMORY_ENABLED: ${{ vars.SEMANTIC_MEMORY_ENABLED }}
+          SEMANTIC_SEEN_TTL_DAYS: ${{ vars.SEMANTIC_SEEN_TTL_DAYS }}
+          SEMANTIC_MEMORY_MAX_IDS: ${{ vars.SEMANTIC_MEMORY_MAX_IDS }}
           # Email
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
@@ -68,6 +77,31 @@ jobs:
           else
             python main.py --days $DAYS
           fi
+
+      - name: Persist semantic memory state
+        run: |
+          if [ ! -f semantic_scholar_memory.json ]; then
+            echo "No semantic memory file found, skipping."
+            exit 0
+          fi
+
+          if git diff --quiet -- semantic_scholar_memory.json; then
+            echo "No semantic memory changes to persist."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add semantic_scholar_memory.json
+          git commit -m "chore: update semantic scholar memory [skip ci]" || {
+            echo "Commit failed or no changes. Continuing."
+            exit 0
+          }
+
+          # Best-effort push; do not fail digest delivery if push cannot be completed.
+          branch="${GITHUB_REF_NAME:-main}"
+          git pull --rebase origin "$branch" || true
+          git push origin "HEAD:$branch" || echo "Memory push failed; continuing without failing workflow."
       
       - name: Upload report artifact (on dry run)
         if: ${{ github.event.inputs.dry_run == 'true' }}
