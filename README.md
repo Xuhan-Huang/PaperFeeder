@@ -515,7 +515,7 @@ scripts/apply_semantic_feedback_latest.sh --dry-run
 
 ### One-Click Feedback (V3, Queue + Apply)
 
-When configured, report/email includes one-click feedback buttons (`positive`, `negative`, `undecided`) per paper.
+When configured, report/email includes one-click feedback buttons (`positive`, `negative`) for papers with a Semantic Scholar ID.
 
 Required environment variables:
 
@@ -577,6 +577,11 @@ python3 semantic_feedback_apply.py \
 ```
 
 Fallback local queue mode remains supported with `--from-queue`.
+
+Notes on state branch:
+- Seeds and memory state are loaded from `memory-state` branch by default (override with repo variable `SEED_STATE_BRANCH`).
+- The manual apply workflow persists `semantic_scholar_seeds.json` to that state branch (not `main`).
+- Daily digest persists memory updates to that same state branch.
 
 ### Operational Notes (Dedup + Memory + Daily Ops)
 

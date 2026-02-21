@@ -137,6 +137,7 @@ def _build_action_links(
     base_url: str,
     run_id: str,
     item_id: str,
+    semantic_paper_id: str,
     reviewer: str,
     signing_secret: str,
     token_ttl_days: int = 7,
@@ -144,11 +145,12 @@ def _build_action_links(
     base = base_url.rstrip("/")
     out: Dict[str, str] = {}
     exp = _to_iso(_utc_now().replace(microsecond=0) + timedelta(days=max(1, token_ttl_days)))
-    for label in ("positive", "negative", "undecided"):
+    for label in ("positive", "negative"):
         claims = {
             "v": 1,
             "run_id": run_id,
             "item_id": item_id,
+            "semantic_paper_id": semantic_paper_id,
             "label": label,
             "reviewer": reviewer,
             "exp": exp,
@@ -195,11 +197,13 @@ def export_run_feedback_manifest(
     rid = run_id or build_run_id()
     for idx, e in enumerate(entries, 1):
         e["item_id"] = f"p{idx:02d}"
-        if feedback_endpoint_base_url and feedback_link_signing_secret:
+        semantic_paper_id = normalize_paper_id(e.get("semantic_paper_id"))
+        if feedback_endpoint_base_url and feedback_link_signing_secret and semantic_paper_id:
             e["action_links"] = _build_action_links(
                 base_url=feedback_endpoint_base_url,
                 run_id=rid,
                 item_id=e["item_id"],
+                semantic_paper_id=semantic_paper_id,
                 reviewer=reviewer,
                 signing_secret=feedback_link_signing_secret,
                 token_ttl_days=token_ttl_days,
@@ -271,8 +275,6 @@ def inject_feedback_actions_into_report(report_html: str, manifest_path: str) ->
             actions.append(f'<a class="pf-feedback-btn positive" href="{links["positive"]}">👍 Positive</a>')
         if links.get("negative"):
             actions.append(f'<a class="pf-feedback-btn negative" href="{links["negative"]}">👎 Negative</a>')
-        if links.get("undecided"):
-            actions.append(f'<a class="pf-feedback-btn undecided" href="{links["undecided"]}">🤔 Undecided</a>')
         if not actions:
             return whole
         action_html = '<span class="pf-feedback-actions">' + " ".join(actions) + "</span>"
@@ -286,7 +288,6 @@ def inject_feedback_actions_into_report(report_html: str, manifest_path: str) ->
 .pf-feedback-btn{font-size:.72em;padding:2px 6px;border-radius:10px;text-decoration:none;border:1px solid #ccc;background:#f8f8f8;color:#333}
 .pf-feedback-btn.positive{border-color:#59a96a;background:#eff9f2;color:#1f6a30}
 .pf-feedback-btn.negative{border-color:#c85f5f;background:#fff1f1;color:#8f1f1f}
-.pf-feedback-btn.undecided{border-color:#7b87a5;background:#f3f5fb;color:#2f3d66}
 </style>
 """
     if "</head>" in updated:
@@ -389,6 +390,7 @@ def ingest_feedback_token(
         reviewer=str(claims.get("reviewer", "")),
         source=source,
         queue_path=queue_path,
+        resolved_semantic_paper_id=str(claims.get("semantic_paper_id", "")),
     )
 
 

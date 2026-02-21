@@ -23,10 +23,41 @@ on:
 jobs:
   apply-queue:
     runs-on: ubuntu-latest
+    env:
+      SEED_STATE_BRANCH: ${{ vars.SEED_STATE_BRANCH }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Load seeds from state branch
+        run: |
+          STATE_BRANCH="${SEED_STATE_BRANCH:-memory-state}"
+          SEEDS_FILE="semantic_scholar_seeds.json"
+          if git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "$STATE_BRANCH"
+            if git show "origin/$STATE_BRANCH:$SEEDS_FILE" > "$SEEDS_FILE" 2>/dev/null; then
+              echo "Loaded seeds from $STATE_BRANCH."
+            else
+              echo "Seeds file missing on $STATE_BRANCH, initializing empty."
+              cat > "$SEEDS_FILE" <<'EOF'
+          {
+            "positive_paper_ids": [],
+            "negative_paper_ids": []
+          }
+          EOF
+            fi
+          else
+            echo "Branch $STATE_BRANCH not found, initializing empty seeds."
+            cat > "$SEEDS_FILE" <<'EOF'
+          {
+            "positive_paper_ids": [],
+            "negative_paper_ids": []
+          }
+          EOF
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -58,15 +89,43 @@ jobs:
             "${BASE_CMD[@]}"
           fi
 
-      - name: Commit updated queue/seeds (non-dry-run)
+      - name: Persist seeds to state branch (non-dry-run)
         if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add semantic_scholar_seeds.json
-          if git diff --cached --quiet; then
-            echo "No queue/seed changes."
+          STATE_BRANCH="${SEED_STATE_BRANCH:-memory-state}"
+          SEEDS_FILE="semantic_scholar_seeds.json"
+          if [ ! -f "$SEEDS_FILE" ]; then
+            echo "No seeds file found, skipping."
             exit 0
           fi
-          git commit -m "chore: apply queued feedback events [skip ci]"
-          git push
+
+          TMP_DIR="$(mktemp -d)"
+          REMOTE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1; then
+            git clone --depth 1 --branch "$STATE_BRANCH" "$REMOTE_URL" "$TMP_DIR/repo"
+          else
+            git clone --depth 1 "$REMOTE_URL" "$TMP_DIR/repo"
+            (
+              cd "$TMP_DIR/repo"
+              git checkout --orphan "$STATE_BRANCH"
+              git rm -rf . >/dev/null 2>&1 || true
+            )
+          fi
+
+          cp "$SEEDS_FILE" "$TMP_DIR/repo/$SEEDS_FILE"
+
+          (
+            cd "$TMP_DIR/repo"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add "$SEEDS_FILE"
+            if git diff --cached --quiet; then
+              echo "No seed changes to persist on $STATE_BRANCH."
+              exit 0
+            fi
+            git commit -m "chore: apply queued feedback to seeds [skip ci]"
+            git push origin "HEAD:$STATE_BRANCH"
+          )

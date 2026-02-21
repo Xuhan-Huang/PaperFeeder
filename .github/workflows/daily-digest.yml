@@ -24,6 +24,8 @@ on:
 jobs:
   run-digest:
     runs-on: ubuntu-latest
+    env:
+      SEED_STATE_BRANCH: ${{ vars.SEED_STATE_BRANCH }}
     
     steps:
       - name: Checkout repository
@@ -42,18 +44,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Load semantic memory from memory-state branch
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+      - name: Load semantic state from state branch
         run: |
-          MEMORY_BRANCH="memory-state"
+          STATE_BRANCH="${SEED_STATE_BRANCH:-memory-state}"
           MEMORY_FILE="semantic_scholar_memory.json"
+          SEEDS_FILE="semantic_scholar_seeds.json"
 
-          if git ls-remote --exit-code --heads origin "$MEMORY_BRANCH" >/dev/null 2>&1; then
-            git fetch --depth=1 origin "$MEMORY_BRANCH"
-            if git show "origin/$MEMORY_BRANCH:$MEMORY_FILE" > "$MEMORY_FILE" 2>/dev/null; then
-              echo "Loaded semantic memory from $MEMORY_BRANCH."
+          if git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1; then
+            git fetch --depth=1 origin "$STATE_BRANCH"
+            if git show "origin/$STATE_BRANCH:$MEMORY_FILE" > "$MEMORY_FILE" 2>/dev/null; then
+              echo "Loaded semantic memory from $STATE_BRANCH."
             else
-              echo "Memory file missing on $MEMORY_BRANCH, initializing empty."
+              echo "Memory file missing on $STATE_BRANCH, initializing empty."
               cat > "$MEMORY_FILE" <<'EOF'
           {
             "seen": {},
@@ -61,12 +63,29 @@ jobs:
           }
           EOF
             fi
+            if git show "origin/$STATE_BRANCH:$SEEDS_FILE" > "$SEEDS_FILE" 2>/dev/null; then
+              echo "Loaded semantic seeds from $STATE_BRANCH."
+            else
+              echo "Seeds file missing on $STATE_BRANCH, initializing empty."
+              cat > "$SEEDS_FILE" <<'EOF'
+          {
+            "positive_paper_ids": [],
+            "negative_paper_ids": []
+          }
+          EOF
+            fi
           else
-            echo "Branch $MEMORY_BRANCH not found, initializing empty memory."
+            echo "Branch $STATE_BRANCH not found, initializing empty semantic state."
             cat > "$MEMORY_FILE" <<'EOF'
           {
             "seen": {},
             "updated_at": ""
+          }
+          EOF
+            cat > "$SEEDS_FILE" <<'EOF'
+          {
+            "positive_paper_ids": [],
+            "negative_paper_ids": []
           }
           EOF
           fi
@@ -112,12 +131,12 @@ jobs:
             python main.py --days $DAYS
           fi
 
-      - name: Persist semantic memory state to memory-state branch
+      - name: Persist semantic memory state to state branch
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          MEMORY_BRANCH="memory-state"
+          STATE_BRANCH="${SEED_STATE_BRANCH:-memory-state}"
           MEMORY_FILE="semantic_scholar_memory.json"
 
           if [ ! -f semantic_scholar_memory.json ]; then
@@ -128,13 +147,13 @@ jobs:
           TMP_DIR="$(mktemp -d)"
           REMOTE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
-          if git ls-remote --exit-code --heads origin "$MEMORY_BRANCH" >/dev/null 2>&1; then
-            git clone --depth 1 --branch "$MEMORY_BRANCH" "$REMOTE_URL" "$TMP_DIR/repo"
+          if git ls-remote --exit-code --heads origin "$STATE_BRANCH" >/dev/null 2>&1; then
+            git clone --depth 1 --branch "$STATE_BRANCH" "$REMOTE_URL" "$TMP_DIR/repo"
           else
             git clone --depth 1 "$REMOTE_URL" "$TMP_DIR/repo"
             (
               cd "$TMP_DIR/repo"
-              git checkout --orphan "$MEMORY_BRANCH"
+              git checkout --orphan "$STATE_BRANCH"
               git rm -rf . >/dev/null 2>&1 || true
             )
           fi
@@ -147,11 +166,11 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add "$MEMORY_FILE"
             if git diff --cached --quiet; then
-              echo "No semantic memory changes to persist on $MEMORY_BRANCH."
+              echo "No semantic memory changes to persist on $STATE_BRANCH."
               exit 0
             fi
             git commit -m "chore: update semantic scholar memory [skip ci]"
-            git push origin "HEAD:$MEMORY_BRANCH" || echo "Memory push failed; continuing without failing workflow."
+            git push origin "HEAD:$STATE_BRANCH" || echo "Memory push failed; continuing without failing workflow."
           )
       
       - name: Upload report artifact (on dry run)

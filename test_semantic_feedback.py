@@ -182,6 +182,7 @@ class SemanticFeedbackTests(unittest.TestCase):
                 "v": 1,
                 "run_id": "run-1",
                 "item_id": "p02",
+                "semantic_paper_id": "CorpusId:123",
                 "label": "negative",
                 "reviewer": "xuhan",
                 "exp": "2099-01-01T00:00:00Z",
@@ -196,6 +197,7 @@ class SemanticFeedbackTests(unittest.TestCase):
             self.assertEqual(event["run_id"], "run-1")
             self.assertEqual(event["item_id"], "p02")
             self.assertEqual(event["label"], "negative")
+            self.assertEqual(event["resolved_semantic_paper_id"], "CorpusId:123")
             queue_data = json.loads(Path(queue_path).read_text())
             self.assertEqual(len(queue_data["events"]), 1)
             self.assertEqual(queue_data["events"][0]["status"], "pending")
@@ -324,6 +326,37 @@ class SemanticFeedbackTests(unittest.TestCase):
             updated = inject_feedback_actions_into_report(html, str(manifest_path))
             self.assertIn("pf-feedback-actions", updated)
             self.assertIn("Positive", updated)
+            self.assertNotIn("Undecided", updated)
+
+    def test_manifest_skips_action_links_without_semantic_id(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            papers = [
+                Paper(
+                    title="No SID Paper",
+                    abstract="a",
+                    url="https://example.com/paper-no-sid",
+                    source=PaperSource.MANUAL,
+                    semantic_paper_id="",
+                )
+            ]
+            html = '<html><head></head><body><h3><a href="https://example.com/paper-no-sid">No SID Paper</a></h3></body></html>'
+            out = export_run_feedback_manifest(
+                papers,
+                html,
+                output_dir=td,
+                run_id="2026-02-21T08-00-00Z",
+                feedback_endpoint_base_url="https://paperfeeder-feedback.example.workers.dev",
+                feedback_link_signing_secret="secret123",
+                reviewer="xuhan",
+                token_ttl_days=7,
+            )
+            self.assertIsNotNone(out)
+            manifest_path, _ = out
+            manifest = json.loads(Path(manifest_path).read_text())
+            self.assertEqual(len(manifest["papers"]), 1)
+            self.assertNotIn("action_links", manifest["papers"][0])
+            updated = inject_feedback_actions_into_report(html, str(manifest_path))
+            self.assertNotIn("pf-feedback-actions", updated)
 
     @patch("semantic_feedback._d1_execute")
     @patch("semantic_feedback._d1_query")
