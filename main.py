@@ -25,6 +25,7 @@ from emailer import ResendEmailer, FileEmailer
 from config import Config
 from models import Paper, PaperSource
 from semantic_memory import SemanticMemoryStore
+from semantic_feedback import export_run_feedback_manifest
 
 # Check if blog sources are available (feedparser required)
 try:
@@ -523,6 +524,18 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
     print("STAGE 6: SYNTHESIS (Report Generation)")
     print("=" * 80)
     report = await summarize_papers(final_papers, config, priority_blogs=all_blogs)
+
+    # Export feedback manifest for human-in-the-loop seed updates (non-blocking).
+    try:
+        feedback_artifacts = export_run_feedback_manifest(final_papers, report, output_dir="artifacts")
+        if feedback_artifacts:
+            manifest_path, questionnaire_path = feedback_artifacts
+            print(f"   ✅ Feedback manifest exported: {manifest_path}")
+            print(f"   ✅ Feedback questionnaire template exported: {questionnaire_path}")
+        else:
+            print("   ⭕ Feedback manifest: no report-visible papers to export")
+    except Exception as e:
+        print(f"   ⚠️ Feedback manifest export failed (non-blocking): {e}")
 
     # Persist seen-memory only for report-visible Semantic Scholar papers (non-blocking).
     update_semantic_memory_from_report(final_papers, report, config)

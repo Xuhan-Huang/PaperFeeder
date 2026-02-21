@@ -467,6 +467,47 @@ Notes:
 - V1 anti-repetition memory marks only final-selected Semantic Scholar papers as `seen` and suppresses repeats for `semantic_seen_ttl_days`.
 - `semantic_scholar_memory.json` is synced by GitHub Actions using a dedicated `memory-state` branch (so daily memory updates do not create noise/conflicts on `main`).
 
+### Human Feedback Loop (V2)
+
+After each run, PaperFeeder exports a feedback manifest:
+- `artifacts/run_feedback_manifest_<run_id>.json`
+- `artifacts/semantic_feedback_template_<run_id>.json` (starter questionnaire, ready to copy/edit)
+
+Create `semantic_feedback.json` (questionnaire style) with:
+- `run_id`, `reviewer`, `reviewed_at`
+- `labels[]`: `{ "item_id": "p01", "label": "positive|negative|undecided", "note": "..." }`
+
+Apply reviewed feedback to seeds:
+
+```bash
+scripts/apply_semantic_feedback.sh \
+  artifacts/run_feedback_manifest_<run_id>.json \
+  semantic_feedback.json \
+  semantic_scholar_seeds.json
+```
+
+One-command mode (auto-pick latest manifest):
+
+```bash
+scripts/apply_semantic_feedback_latest.sh
+```
+
+Dry run validation (no write):
+
+```bash
+scripts/apply_semantic_feedback.sh \
+  artifacts/run_feedback_manifest_<run_id>.json \
+  semantic_feedback.json \
+  semantic_scholar_seeds.json \
+  --dry-run
+```
+
+One-command dry run:
+
+```bash
+scripts/apply_semantic_feedback_latest.sh --dry-run
+```
+
 ### Operational Notes (Dedup + Memory + Daily Ops)
 
 #### Dedup behavior (important)
