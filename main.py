@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import argparse
+import base64
 import os
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional, List
 from urllib.parse import urlsplit, urlunsplit
 
@@ -407,7 +409,7 @@ async def summarize_papers(papers: list[Paper], config: Config, priority_blogs: 
     return report
 
 
-async def send_email(report: str, config: Config) -> bool:
+async def send_email(report: str, config: Config, attachments: Optional[List[dict]] = None) -> bool:
     """Send the report via email."""
     print(f"\n📧 Sending email to {config.email_to}...")
     
@@ -422,7 +424,8 @@ async def send_email(report: str, config: Config) -> bool:
     success = await emailer.send(
         to=config.email_to,
         subject=subject,
-        html_content=report
+        html_content=report,
+        attachments=attachments or [],
     )
     
     if success:
@@ -431,6 +434,24 @@ async def send_email(report: str, config: Config) -> bool:
         print("   ❌ Failed to send email")
     
     return success
+
+
+def _build_email_attachments(paths: List[str]) -> List[dict]:
+    """Build base64 email attachments from local files."""
+    attachments: List[dict] = []
+    for p in paths:
+        path = Path(p)
+        if not path.exists() or not path.is_file():
+            continue
+        content = base64.b64encode(path.read_bytes()).decode("ascii")
+        attachments.append(
+            {
+                "filename": path.name,
+                "content": content,
+                "content_type": "application/json",
+            }
+        )
+    return attachments
 
 
 async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry_run: bool = False, no_papers: bool = False, no_blogs: bool = False):
@@ -525,6 +546,7 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
     print("=" * 80)
     report = await summarize_papers(final_papers, config, priority_blogs=all_blogs)
 
+    feedback_attachment_paths: List[str] = []
     # Export feedback manifest for human-in-the-loop seed updates (non-blocking).
     try:
         feedback_artifacts = export_run_feedback_manifest(final_papers, report, output_dir="artifacts")
@@ -532,6 +554,7 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
             manifest_path, questionnaire_path = feedback_artifacts
             print(f"   ✅ Feedback manifest exported: {manifest_path}")
             print(f"   ✅ Feedback questionnaire template exported: {questionnaire_path}")
+            feedback_attachment_paths = [str(manifest_path), str(questionnaire_path)]
         else:
             print("   ⭕ Feedback manifest: no report-visible papers to export")
     except Exception as e:
@@ -555,7 +578,10 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
         )
         print("✅ Report saved to report_preview.html")
     else:
-        await send_email(report, config)
+        attachments = _build_email_attachments(feedback_attachment_paths)
+        if attachments:
+            print(f"   📎 Attaching {len(attachments)} feedback JSON file(s) to email")
+        await send_email(report, config, attachments=attachments)
     
     print("\n" + "=" * 80)
     print("✨ Pipeline Complete!")

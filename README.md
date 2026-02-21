@@ -473,6 +473,11 @@ After each run, PaperFeeder exports a feedback manifest:
 - `artifacts/run_feedback_manifest_<run_id>.json`
 - `artifacts/semantic_feedback_template_<run_id>.json` (starter questionnaire, ready to copy/edit)
 
+Delivery path:
+- In normal email mode, both JSON files are attached to the digest email.
+- In GitHub Actions, feedback files are packaged and uploaded as `feedback-artifacts-<run_id>.zip`.
+- In dry-run, you additionally get `paper-report` preview artifact.
+
 Create `semantic_feedback.json` (questionnaire style) with:
 - `run_id`, `reviewer`, `reviewed_at`
 - `labels[]`: `{ "item_id": "p01", "label": "positive|negative|undecided", "note": "..." }`
@@ -549,6 +554,7 @@ scripts/apply_semantic_feedback_latest.sh --dry-run
 - In GitHub Actions, open `Daily Paper Digest` -> `Run workflow`.
 - `days_back` controls how many days of papers are fetched (`--days` in CLI).
 - `dry_run=true` generates preview artifact (`paper-report`) without sending email.
+- Feedback files are uploaded as `feedback-artifacts-<run_id>.zip` for each run.
 
 #### Troubleshooting
 

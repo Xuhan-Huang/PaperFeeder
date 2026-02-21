@@ -21,6 +21,8 @@ ENV/
 report_preview.html
 email_preview.html
 *.log
+artifacts/
+semantic_feedback.json
 
 # IDE
 .idea/

@@ -43,6 +43,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Load semantic memory from memory-state branch
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           MEMORY_BRANCH="memory-state"
           MEMORY_FILE="semantic_scholar_memory.json"
@@ -86,7 +87,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # Semantic Scholar memory (optional overrides)
-          SEMANTIC_MEMORY_ENABLED: ${{ vars.SEMANTIC_MEMORY_ENABLED }}
+          SEMANTIC_MEMORY_ENABLED: ${{ github.event.inputs.dry_run == 'true' && 'false' || vars.SEMANTIC_MEMORY_ENABLED }}
           SEMANTIC_SEEN_TTL_DAYS: ${{ vars.SEMANTIC_SEEN_TTL_DAYS }}
           SEMANTIC_MEMORY_MAX_IDS: ${{ vars.SEMANTIC_MEMORY_MAX_IDS }}
           # Email
@@ -107,6 +108,7 @@ jobs:
           fi
 
       - name: Persist semantic memory state to memory-state branch
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -155,13 +157,25 @@ jobs:
           path: report_preview.html
           retention-days: 7
 
-      - name: Upload feedback artifacts
+      - name: Package feedback artifacts
         if: always()
+        run: |
+          echo "ZIP_NAME=" >> "$GITHUB_ENV"
+          shopt -s nullglob
+          FILES=(artifacts/run_feedback_manifest_*.json artifacts/semantic_feedback_template_*.json)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No feedback files found to package."
+            exit 0
+          fi
+          ZIP_NAME="feedback-artifacts-${GITHUB_RUN_ID}.zip"
+          zip -j "$ZIP_NAME" "${FILES[@]}"
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload feedback artifacts
+        if: ${{ always() && env.ZIP_NAME != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: feedback-artifacts
-          path: |
-            artifacts/run_feedback_manifest_*.json
-            artifacts/semantic_feedback_template_*.json
+          name: feedback-artifacts-${{ github.run_id }}
+          path: ${{ env.ZIP_NAME }}
           if-no-files-found: warn
           retention-days: 14
