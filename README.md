@@ -465,7 +465,7 @@ Notes:
 - `positive_paper_ids` controls "more like this"; `negative_paper_ids` suppresses unwanted directions.
 - `SEMANTIC_SCHOLAR_API_KEY` is optional in this implementation; unauthenticated calls are attempted when absent.
 - V1 anti-repetition memory marks only final-selected Semantic Scholar papers as `seen` and suppresses repeats for `semantic_seen_ttl_days`.
-- `semantic_scholar_memory.json` is persisted by GitHub Actions (commit-on-diff) to keep state across scheduled runs.
+- `semantic_scholar_memory.json` is synced by GitHub Actions using a dedicated `memory-state` branch (so daily memory updates do not create noise/conflicts on `main`).
 
 ### Disable Features
 
