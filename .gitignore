@@ -23,6 +23,7 @@ email_preview.html
 *.log
 artifacts/
 semantic_feedback.json
+semantic_feedback_queue.json
 
 # IDE
 .idea/

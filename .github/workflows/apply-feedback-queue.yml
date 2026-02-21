@@ -1,0 +1,72 @@
+name: Apply Feedback Queue
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Optional run_id filter (empty = apply all pending)"
+        required: false
+        default: ""
+      manifest_file:
+        description: "Optional manifest file for run mapping (falls back to artifacts dir scan)"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run (no seed write)"
+        required: false
+        default: "true"
+        type: boolean
+
+jobs:
+  apply-queue:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Apply queue to seeds
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          MANIFEST="${{ github.event.inputs.manifest_file }}"
+          RUN_ID="${{ github.event.inputs.run_id }}"
+          DRY="${{ github.event.inputs.dry_run || 'true' }}"
+          BASE_CMD=(python semantic_feedback_apply.py --from-d1 --manifest-file "${MANIFEST}" --manifests-dir artifacts)
+          if [ -n "$RUN_ID" ]; then
+            BASE_CMD+=(--run-id "$RUN_ID")
+          fi
+          if [ "$DRY" = "true" ]; then
+            "${BASE_CMD[@]}" --dry-run
+          else
+            "${BASE_CMD[@]}"
+          fi
+
+      - name: Commit updated queue/seeds (non-dry-run)
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add semantic_scholar_seeds.json
+          if git diff --cached --quiet; then
+            echo "No queue/seed changes."
+            exit 0
+          fi
+          git commit -m "chore: apply queued feedback events [skip ci]"
+          git push

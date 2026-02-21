@@ -138,6 +138,12 @@ class Config:
     cloudflare_api_token: str = ""
     d1_database_id: str = ""
     
+    # V3 one-click feedback settings
+    feedback_endpoint_base_url: str = ""
+    feedback_link_signing_secret: str = ""
+    feedback_token_ttl_days: int = 7
+    feedback_reviewer: str = ""
+    
     @classmethod
     def from_yaml(cls, path: str) -> "Config":
         """Load config from YAML file, with env var overrides."""
@@ -161,6 +167,10 @@ class Config:
             "cloudflare_account_id": os.getenv("CLOUDFLARE_ACCOUNT_ID"),
             "cloudflare_api_token": os.getenv("CLOUDFLARE_API_TOKEN"),
             "d1_database_id": os.getenv("D1_DATABASE_ID"),
+            "feedback_endpoint_base_url": os.getenv("FEEDBACK_ENDPOINT_BASE_URL"),
+            "feedback_link_signing_secret": os.getenv("FEEDBACK_LINK_SIGNING_SECRET"),
+            "feedback_token_ttl_days": os.getenv("FEEDBACK_TOKEN_TTL_DAYS"),
+            "feedback_reviewer": os.getenv("FEEDBACK_REVIEWER"),
             # Source enablement
             "papers_enabled": os.getenv("PAPERS_ENABLED"),
             "semantic_scholar_enabled": os.getenv("SEMANTIC_SCHOLAR_ENABLED"),
@@ -183,7 +193,7 @@ class Config:
                 if key in ("blogs_enabled", "papers_enabled", "semantic_scholar_enabled", "semantic_memory_enabled"):
                     config_data[key] = value.lower() not in ("false", "0", "no", "off")
                 # Handle int conversion for blog_days_back
-                elif key in ("blog_days_back", "semantic_scholar_max_results", "semantic_seen_ttl_days", "semantic_memory_max_ids"):
+                elif key in ("blog_days_back", "semantic_scholar_max_results", "semantic_seen_ttl_days", "semantic_memory_max_ids", "feedback_token_ttl_days"):
                     try:
                         config_data[key] = int(value)
                     except ValueError:
@@ -240,6 +250,9 @@ class Config:
             "blog_days_back": self.blog_days_back,
             "enabled_blogs": self.enabled_blogs,
             "custom_blogs": self.custom_blogs,
+            "feedback_endpoint_base_url": self.feedback_endpoint_base_url,
+            "feedback_token_ttl_days": self.feedback_token_ttl_days,
+            "feedback_reviewer": self.feedback_reviewer,
         }
         
         with open(path, "w") as f:

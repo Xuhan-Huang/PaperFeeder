@@ -513,6 +513,71 @@ One-command dry run:
 scripts/apply_semantic_feedback_latest.sh --dry-run
 ```
 
+### One-Click Feedback (V3, Queue + Apply)
+
+When configured, report/email includes one-click feedback buttons (`positive`, `negative`, `undecided`) per paper.
+
+Required environment variables:
+
+```bash
+FEEDBACK_ENDPOINT_BASE_URL=https://paperfeeder-feedback.<subdomain>.workers.dev
+FEEDBACK_LINK_SIGNING_SECRET=<shared-secret>
+FEEDBACK_TOKEN_TTL_DAYS=7
+FEEDBACK_REVIEWER=<optional reviewer override>
+```
+
+Notes:
+- Links are signed; backend must verify token before queue insert.
+- V3 baseline policy is queue-first: click capture does not mutate seeds immediately.
+- Apply is still explicit/manual (via workflow_dispatch).
+
+Queue apply command:
+
+```bash
+scripts/apply_semantic_feedback_queue.sh \
+  artifacts/run_feedback_manifest_<run_id>.json \
+  semantic_feedback_queue.json \
+  semantic_scholar_seeds.json
+```
+
+Queue apply dry run:
+
+```bash
+scripts/apply_semantic_feedback_queue.sh \
+  artifacts/run_feedback_manifest_<run_id>.json \
+  semantic_feedback_queue.json \
+  semantic_scholar_seeds.json \
+  --dry-run
+```
+
+Cloudflare worker template and D1 schema examples:
+- `cloudflare/feedback_worker.js`
+- `cloudflare/d1_feedback_events.sql`
+
+D1 apply (default: apply all pending):
+
+```bash
+python3 semantic_feedback_apply.py \
+  --from-d1 \
+  --manifest-file "" \
+  --manifests-dir artifacts \
+  --seeds-file semantic_scholar_seeds.json \
+  --dry-run
+```
+
+Optional run filter:
+
+```bash
+python3 semantic_feedback_apply.py \
+  --from-d1 \
+  --run-id 2026-02-21T16-07-25Z \
+  --manifest-file artifacts/run_feedback_manifest_2026-02-21T16-07-25Z.json \
+  --seeds-file semantic_scholar_seeds.json \
+  --dry-run
+```
+
+Fallback local queue mode remains supported with `--from-queue`.
+
 ### Operational Notes (Dedup + Memory + Daily Ops)
 
 #### Dedup behavior (important)

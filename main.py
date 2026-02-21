@@ -27,7 +27,7 @@ from emailer import ResendEmailer, FileEmailer
 from config import Config
 from models import Paper, PaperSource
 from semantic_memory import SemanticMemoryStore
-from semantic_feedback import export_run_feedback_manifest
+from semantic_feedback import export_run_feedback_manifest, inject_feedback_actions_into_report
 
 # Check if blog sources are available (feedparser required)
 try:
@@ -549,12 +549,25 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
     feedback_attachment_paths: List[str] = []
     # Export feedback manifest for human-in-the-loop seed updates (non-blocking).
     try:
-        feedback_artifacts = export_run_feedback_manifest(final_papers, report, output_dir="artifacts")
+        feedback_artifacts = export_run_feedback_manifest(
+            final_papers,
+            report,
+            output_dir="artifacts",
+            feedback_endpoint_base_url=getattr(config, "feedback_endpoint_base_url", ""),
+            feedback_link_signing_secret=getattr(config, "feedback_link_signing_secret", ""),
+            reviewer=getattr(config, "feedback_reviewer", "") or getattr(config, "email_to", ""),
+            token_ttl_days=getattr(config, "feedback_token_ttl_days", 7),
+        )
         if feedback_artifacts:
             manifest_path, questionnaire_path = feedback_artifacts
             print(f"   ✅ Feedback manifest exported: {manifest_path}")
             print(f"   ✅ Feedback questionnaire template exported: {questionnaire_path}")
             feedback_attachment_paths = [str(manifest_path), str(questionnaire_path)]
+            try:
+                report = inject_feedback_actions_into_report(report, str(manifest_path))
+                print("   ✅ One-click feedback buttons injected into report")
+            except Exception as e:
+                print(f"   ⚠️ Feedback button injection failed (non-blocking): {e}")
         else:
             print("   ⭕ Feedback manifest: no report-visible papers to export")
     except Exception as e:
