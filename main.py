@@ -323,10 +323,10 @@ async def filter_papers_fine(papers: List[Paper], config: Config) -> List[Paper]
         print("   LLM filter disabled, returning all papers")
         return papers[:config.max_papers]
     
-    # Fine ranking should use the main model settings.
-    filter_api_key = config.llm_api_key
-    filter_base_url = config.llm_base_url
-    filter_model = config.llm_model
+    # Fine ranking uses filter model settings (same provider path as filtering stage).
+    filter_api_key = config.llm_filter_api_key
+    filter_base_url = config.llm_filter_base_url
+    filter_model = config.llm_filter_model
     
     print(f"   🤖 Applying LLM Fine Filter with Community Signals ({filter_model})...")
     llm_filter = LLMFilter(
