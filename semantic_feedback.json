@@ -1,0 +1,43 @@
+{
+  "version": "v1",
+  "run_id": "2026-02-21T10-06-38Z",
+  "reviewer": "xuhan",
+  "reviewed_at": "2026-02-21T18:00:00Z",
+  "labels": [
+    {
+      "item_id": "p01",
+      "label": "positive",
+      "note": ""
+    },
+    {
+      "item_id": "p02",
+      "label": "undecided",
+      "note": ""
+    },
+    {
+      "item_id": "p03",
+      "label": "undecided",
+      "note": ""
+    },
+    {
+      "item_id": "p04",
+      "label": "undecided",
+      "note": ""
+    },
+    {
+      "item_id": "p05",
+      "label": "positive",
+      "note": ""
+    },
+    {
+      "item_id": "p06",
+      "label": "negative",
+      "note": ""
+    },
+    {
+      "item_id": "p07",
+      "label": "undecided",
+      "note": ""
+    }
+  ]
+}
