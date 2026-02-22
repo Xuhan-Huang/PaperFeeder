@@ -437,9 +437,9 @@ Or just add URLs (metadata auto-fetched):
 
 ### Semantic Scholar Recommendations (Seed-Based)
 
-You can inject Semantic Scholar recommendations as an additional source.
+Use Semantic Scholar as an additional source with memory + preference feedback.
 
-1. Configure `config.yaml`:
+1. Configure `config.yaml` (or env overrides):
 
 ```yaml
 semantic_scholar_enabled: true
@@ -451,134 +451,52 @@ semantic_seen_ttl_days: 30
 semantic_memory_max_ids: 5000
 ```
 
-2. Create/edit `semantic_scholar_seeds.json`:
+2. Create/edit `semantic_scholar_seeds.json` (standard style):
 
 ```json
 {
-  "positive_paper_ids": ["282913080", "270562552"],
-  "negative_paper_ids": ["283933653"]
+  "positive_paper_ids": ["CorpusId:282913080", "CorpusId:270562552"],
+  "negative_paper_ids": ["CorpusId:283933653"]
 }
 ```
 
 Notes:
-- The pipeline auto-normalizes numeric IDs to `CorpusId:<id>` for API compatibility.
-- `positive_paper_ids` controls "more like this"; `negative_paper_ids` suppresses unwanted directions.
-- `SEMANTIC_SCHOLAR_API_KEY` is optional in this implementation; unauthenticated calls are attempted when absent.
-- V1 anti-repetition memory marks only final-selected Semantic Scholar papers as `seen` and suppresses repeats for `semantic_seen_ttl_days`.
-- `semantic_scholar_memory.json` is synced by GitHub Actions using a dedicated `memory-state` branch (so daily memory updates do not create noise/conflicts on `main`).
-- For a complete setup walkthrough (memory + preference feedback + daily operations), see `docs/PERSONALIZATION_AND_MEMORY.md`.
+- Numeric IDs are auto-normalized to `CorpusId:<id>`.
+- `positive_paper_ids` means "more like this"; `negative_paper_ids` means "avoid this direction".
+- For day-to-day usage and operations, see `docs/PERSONALIZATION_AND_MEMORY.md`.
 
-### Human Feedback Loop (V2)
+### Preference Feedback (Current Flow)
 
-After each run, PaperFeeder exports a feedback manifest:
-- `artifacts/run_feedback_manifest_<run_id>.json`
-- `artifacts/semantic_feedback_template_<run_id>.json` (starter questionnaire, ready to copy/edit)
+Email stays digest-only. If you want to give preference feedback, open the run-level web viewer link in the email and click `positive` / `negative` there.
 
-Delivery path:
-- In normal email mode, digest emails are notification-only (no JSON attachment).
-- In GitHub Actions, feedback files are packaged and uploaded as `feedback-artifacts-<run_id>.zip`.
-- In dry-run, you additionally get `paper-report` preview artifact.
-
-Create `semantic_feedback.json` (questionnaire style) with:
-- `run_id`, `reviewer`, `reviewed_at`
-- `labels[]`: `{ "item_id": "p01", "label": "positive|negative|undecided", "note": "..." }`
-
-Apply reviewed feedback to seeds:
-
-```bash
-scripts/apply_semantic_feedback.sh \
-  artifacts/run_feedback_manifest_<run_id>.json \
-  semantic_feedback.json \
-  semantic_scholar_seeds.json
-```
-
-One-command mode (auto-pick latest manifest):
-
-```bash
-scripts/apply_semantic_feedback_latest.sh
-```
-
-Dry run validation (no write):
-
-```bash
-scripts/apply_semantic_feedback.sh \
-  artifacts/run_feedback_manifest_<run_id>.json \
-  semantic_feedback.json \
-  semantic_scholar_seeds.json \
-  --dry-run
-```
-
-One-command dry run:
-
-```bash
-scripts/apply_semantic_feedback_latest.sh --dry-run
-```
-
-### One-Click Feedback (V3, Queue + Apply)
-
-When configured, email remains a paper digest notification and includes one run-level link to a web viewer. Feedback actions (`positive`, `negative`) are submitted in the web viewer, not directly inside email.
-
-Required environment variables:
+Required keys (GitHub Secrets / `.env`):
 
 ```bash
 FEEDBACK_ENDPOINT_BASE_URL=https://paperfeeder-feedback.<subdomain>.workers.dev
 FEEDBACK_LINK_SIGNING_SECRET=<shared-secret>
 FEEDBACK_TOKEN_TTL_DAYS=7
 FEEDBACK_REVIEWER=<optional reviewer override>
+
+CLOUDFLARE_ACCOUNT_ID=<account-id>
+CLOUDFLARE_API_TOKEN=<api-token>
+D1_DATABASE_ID=<database-id>
 ```
+
+Recommended usage (easy mode):
+1. Run `Daily Paper Digest`.
+2. Open email -> click one web viewer link.
+3. Click `positive` / `negative` in web viewer.
+4. Run `Apply Feedback Queue` action:
+   - `dry_run=true` first
+   - then `dry_run=false` to persist seeds.
 
 Notes:
-- Links are signed; backend must verify token before queue insert.
-- V3 baseline policy is queue-first: click capture does not mutate seeds immediately.
-- Apply is still explicit/manual (via workflow_dispatch).
-- Web viewer content is persisted in D1 (`feedback_runs`) and served by worker route `/run?run_id=<id>`.
+- Queue-first policy: clicks create `pending` events only.
+- Seeds are updated only by manual apply action.
+- `scripts/apply_semantic_feedback_queue.sh` is optional for local debugging, not required for normal GitHub Actions use.
 
-Queue apply command:
-
-```bash
-scripts/apply_semantic_feedback_queue.sh \
-  artifacts/run_feedback_manifest_<run_id>.json \
-  semantic_feedback_queue.json \
-  semantic_scholar_seeds.json
-```
-
-Queue apply dry run:
-
-```bash
-scripts/apply_semantic_feedback_queue.sh \
-  artifacts/run_feedback_manifest_<run_id>.json \
-  semantic_feedback_queue.json \
-  semantic_scholar_seeds.json \
-  --dry-run
-```
-
-Cloudflare worker template and D1 schema examples:
-- `cloudflare/feedback_worker.js`
-- `cloudflare/d1_feedback_events.sql`
-
-D1 apply (default: apply all pending):
-
-```bash
-python3 semantic_feedback_apply.py \
-  --from-d1 \
-  --manifest-file "" \
-  --manifests-dir artifacts \
-  --seeds-file semantic_scholar_seeds.json \
-  --dry-run
-```
-
-Optional run filter:
-
-```bash
-python3 semantic_feedback_apply.py \
-  --from-d1 \
-  --run-id 2026-02-21T16-07-25Z \
-  --manifest-file artifacts/run_feedback_manifest_2026-02-21T16-07-25Z.json \
-  --seeds-file semantic_scholar_seeds.json \
-  --dry-run
-```
-
-Fallback local queue mode remains supported with `--from-queue`.
+Detailed infrastructure setup (Cloudflare Worker + D1 schema + secrets):
+- `docs/FEEDBACK_INFRA_SETUP.md`
 
 Notes on state branch:
 - Seeds and memory state are loaded from `memory-state` branch by default (override with repo variable `SEED_STATE_BRANCH`).
