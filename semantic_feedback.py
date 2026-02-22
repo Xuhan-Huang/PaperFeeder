@@ -296,11 +296,56 @@ def inject_feedback_actions_into_report(report_html: str, manifest_path: str) ->
 .pf-feedback-btn{font-size:.72em;padding:2px 6px;border-radius:10px;text-decoration:none;border:1px solid #ccc;background:#f8f8f8;color:#333}
 .pf-feedback-btn.positive{border-color:#59a96a;background:#eff9f2;color:#1f6a30}
 .pf-feedback-btn.negative{border-color:#c85f5f;background:#fff1f1;color:#8f1f1f}
+.pf-feedback-btn.is-loading{opacity:.6;pointer-events:none}
+.pf-feedback-btn.is-selected{box-shadow:0 0 0 2px rgba(40,120,220,.22) inset}
+.pf-feedback-toast{position:fixed;right:14px;bottom:14px;background:#1f2937;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;z-index:9999;opacity:0;transform:translateY(8px);transition:opacity .18s ease,transform .18s ease}
+.pf-feedback-toast.show{opacity:1;transform:translateY(0)}
 </style>
 """
+    script = """
+<script>
+(function(){
+  function showToast(msg){
+    var t = document.querySelector('.pf-feedback-toast');
+    if(!t){
+      t = document.createElement('div');
+      t.className = 'pf-feedback-toast';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1200);
+  }
+  document.addEventListener('click', async function(ev){
+    var a = ev.target && ev.target.closest ? ev.target.closest('a.pf-feedback-btn') : null;
+    if(!a) return;
+    ev.preventDefault();
+    if(a.classList.contains('is-loading')) return;
+    a.classList.add('is-loading');
+    try{
+      var resp = await fetch(a.href, { method: 'GET', credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' }});
+      if(!resp.ok){
+        showToast('Feedback failed');
+        return;
+      }
+      var wrap = a.closest('.pf-feedback-actions');
+      if(wrap){
+        wrap.querySelectorAll('.pf-feedback-btn').forEach(function(btn){ btn.classList.remove('is-selected'); });
+      }
+      a.classList.add('is-selected');
+      showToast('Feedback saved');
+    }catch(_err){
+      showToast('Network error');
+    }finally{
+      a.classList.remove('is-loading');
+    }
+  });
+})();
+</script>
+"""
     if "</head>" in updated:
-        return updated.replace("</head>", style + "\n</head>", 1)
-    return style + "\n" + updated
+        return updated.replace("</head>", style + "\n" + script + "\n</head>", 1)
+    return style + "\n" + script + "\n" + updated
 
 
 def inject_feedback_entry_link(report_html: str, run_view_url: str) -> str:
