@@ -160,6 +160,14 @@ def _build_action_links(
     return out
 
 
+def build_feedback_run_view_url(base_url: str, run_id: str) -> str:
+    base = (base_url or "").rstrip("/")
+    rid = str(run_id or "").strip()
+    if not base or not rid:
+        return ""
+    return f"{base}/run?run_id={quote_plus(rid)}"
+
+
 def export_run_feedback_manifest(
     final_papers: Iterable[Any],
     report_html: str,
@@ -293,6 +301,66 @@ def inject_feedback_actions_into_report(report_html: str, manifest_path: str) ->
     if "</head>" in updated:
         return updated.replace("</head>", style + "\n</head>", 1)
     return style + "\n" + updated
+
+
+def inject_feedback_entry_link(report_html: str, run_view_url: str) -> str:
+    """Inject a single run-level feedback entry link into report html."""
+    if not report_html or not run_view_url:
+        return report_html
+    block = f"""
+<div class="pf-feedback-entry" style="margin:14px 0;padding:12px;border:1px solid #d5deea;border-radius:10px;background:#f8fbff;">
+  <strong>Feedback:</strong> Review this digest and submit preferences in the web viewer.
+  <a href="{run_view_url}" style="margin-left:8px;">Open Feedback Web Viewer</a>
+</div>
+"""
+    if "<body" in report_html and ">" in report_html:
+        import re
+
+        return re.sub(r"(<body[^>]*>)", r"\1\n" + block, report_html, count=1, flags=re.IGNORECASE)
+    return block + "\n" + report_html
+
+
+def get_run_id_from_manifest(manifest_path: str) -> str:
+    data = _load_json(manifest_path)
+    return str(data.get("run_id", "")).strip()
+
+
+def publish_feedback_run_to_d1(
+    *,
+    manifest_path: str,
+    report_html: str,
+    account_id: str | None = None,
+    api_token: str | None = None,
+    database_id: str | None = None,
+) -> str:
+    """Persist run-level web viewer content into D1 and return run_id."""
+    acc = account_id or os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+    tok = api_token or os.getenv("CLOUDFLARE_API_TOKEN", "")
+    dbid = database_id or os.getenv("D1_DATABASE_ID", "")
+    if not acc or not tok or not dbid:
+        raise ValueError("Missing D1 credentials (account_id/api_token/database_id)")
+    manifest = _load_json(manifest_path)
+    run_id = str(manifest.get("run_id", "")).strip()
+    if not run_id:
+        raise ValueError("manifest run_id is required")
+
+    create_sql = """
+    CREATE TABLE IF NOT EXISTS feedback_runs (
+      run_id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      report_html TEXT NOT NULL
+    );
+    """
+    _d1_execute(acc, tok, dbid, create_sql)
+
+    upsert_sql = (
+        "INSERT INTO feedback_runs (run_id, created_at, report_html) VALUES ("
+        f"{_sql_quote(run_id)}, {_sql_quote(_to_iso(_utc_now()))}, {_sql_quote(report_html)}"
+        ") ON CONFLICT(run_id) DO UPDATE SET "
+        "created_at=excluded.created_at, report_html=excluded.report_html"
+    )
+    _d1_execute(acc, tok, dbid, upsert_sql)
+    return run_id
 
 
 def _load_json(path: str) -> Dict[str, Any]:

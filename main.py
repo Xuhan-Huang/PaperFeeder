@@ -27,7 +27,14 @@ from emailer import ResendEmailer, FileEmailer
 from config import Config
 from models import Paper, PaperSource
 from semantic_memory import SemanticMemoryStore
-from semantic_feedback import export_run_feedback_manifest, inject_feedback_actions_into_report
+from semantic_feedback import (
+    build_feedback_run_view_url,
+    export_run_feedback_manifest,
+    get_run_id_from_manifest,
+    inject_feedback_actions_into_report,
+    inject_feedback_entry_link,
+    publish_feedback_run_to_d1,
+)
 
 # Check if blog sources are available (feedparser required)
 try:
@@ -547,6 +554,7 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
     report = await summarize_papers(final_papers, config, priority_blogs=all_blogs)
 
     feedback_attachment_paths: List[str] = []
+    email_report = report
     # Export feedback manifest for human-in-the-loop seed updates (non-blocking).
     try:
         feedback_artifacts = export_run_feedback_manifest(
@@ -564,10 +572,31 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
             print(f"   ✅ Feedback questionnaire template exported: {questionnaire_path}")
             feedback_attachment_paths = [str(manifest_path), str(questionnaire_path)]
             try:
-                report = inject_feedback_actions_into_report(report, str(manifest_path))
-                print("   ✅ One-click feedback buttons injected into report")
+                web_report = inject_feedback_actions_into_report(report, str(manifest_path))
+                run_id = get_run_id_from_manifest(str(manifest_path))
+                run_view_url = build_feedback_run_view_url(
+                    getattr(config, "feedback_endpoint_base_url", ""),
+                    run_id,
+                )
+                if run_view_url:
+                    email_report = inject_feedback_entry_link(report, run_view_url)
+                    print("   ✅ Web feedback entry link injected into email report")
+                else:
+                    print("   ⚠️ Feedback endpoint base URL missing; skipped web feedback entry link")
+
+                try:
+                    publish_feedback_run_to_d1(
+                        manifest_path=str(manifest_path),
+                        report_html=web_report,
+                        account_id=getattr(config, "cloudflare_account_id", ""),
+                        api_token=getattr(config, "cloudflare_api_token", ""),
+                        database_id=getattr(config, "d1_database_id", ""),
+                    )
+                    print("   ✅ Published web viewer report to D1")
+                except Exception as e:
+                    print(f"   ⚠️ D1 run publish failed (non-blocking): {e}")
             except Exception as e:
-                print(f"   ⚠️ Feedback button injection failed (non-blocking): {e}")
+                print(f"   ⚠️ Feedback web-view build failed (non-blocking): {e}")
         else:
             print("   ⭕ Feedback manifest: no report-visible papers to export")
     except Exception as e:
@@ -587,14 +616,14 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
         await file_emailer.send(
             to=config.email_to,
             subject=f"Paper Digest - {datetime.now().strftime('%Y-%m-%d')}",
-            html_content=report
+            html_content=email_report
         )
         print("✅ Report saved to report_preview.html")
     else:
         attachments = _build_email_attachments(feedback_attachment_paths)
         if attachments:
             print(f"   📎 Attaching {len(attachments)} feedback JSON file(s) to email")
-        await send_email(report, config, attachments=attachments)
+        await send_email(email_report, config, attachments=attachments)
     
     print("\n" + "=" * 80)
     print("✨ Pipeline Complete!")

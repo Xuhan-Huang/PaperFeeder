@@ -515,7 +515,7 @@ scripts/apply_semantic_feedback_latest.sh --dry-run
 
 ### One-Click Feedback (V3, Queue + Apply)
 
-When configured, report/email includes one-click feedback buttons (`positive`, `negative`) for papers with a Semantic Scholar ID.
+When configured, email remains a paper digest notification and includes one run-level link to a web viewer. Feedback actions (`positive`, `negative`) are submitted in the web viewer, not directly inside email.
 
 Required environment variables:
 
@@ -530,6 +530,7 @@ Notes:
 - Links are signed; backend must verify token before queue insert.
 - V3 baseline policy is queue-first: click capture does not mutate seeds immediately.
 - Apply is still explicit/manual (via workflow_dispatch).
+- Web viewer content is persisted in D1 (`feedback_runs`) and served by worker route `/run?run_id=<id>`.
 
 Queue apply command:
 

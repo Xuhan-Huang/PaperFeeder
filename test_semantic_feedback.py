@@ -11,10 +11,14 @@ from semantic_feedback import (
     apply_feedback_d1_to_seeds,
     apply_feedback_queue_to_seeds,
     apply_feedback_to_seeds,
+    build_feedback_run_view_url,
     create_feedback_token,
     export_run_feedback_manifest,
+    get_run_id_from_manifest,
     ingest_feedback_token,
     inject_feedback_actions_into_report,
+    inject_feedback_entry_link,
+    publish_feedback_run_to_d1,
     verify_feedback_token,
 )
 
@@ -328,6 +332,14 @@ class SemanticFeedbackTests(unittest.TestCase):
             self.assertIn("Positive", updated)
             self.assertNotIn("Undecided", updated)
 
+    def test_build_and_inject_feedback_entry_link(self) -> None:
+        html = "<html><head></head><body><h1>Paper Digest</h1></body></html>"
+        url = build_feedback_run_view_url("https://paperfeeder-feedback.example.workers.dev", "run-123")
+        updated = inject_feedback_entry_link(html, url)
+        self.assertIn("/run?run_id=run-123", updated)
+        self.assertIn("Open Feedback Web Viewer", updated)
+        self.assertNotIn("pf-feedback-actions", updated)
+
     def test_manifest_skips_action_links_without_semantic_id(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             papers = [
@@ -357,6 +369,33 @@ class SemanticFeedbackTests(unittest.TestCase):
             self.assertNotIn("action_links", manifest["papers"][0])
             updated = inject_feedback_actions_into_report(html, str(manifest_path))
             self.assertNotIn("pf-feedback-actions", updated)
+
+    @patch("semantic_feedback._d1_execute")
+    def test_publish_feedback_run_to_d1(self, mock_d1_execute) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            manifest = td_path / "manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "version": "v1",
+                        "run_id": "run-pub",
+                        "generated_at": "2026-02-21T08:10:00Z",
+                        "papers": [],
+                    }
+                )
+                + "\n"
+            )
+            run_id = publish_feedback_run_to_d1(
+                manifest_path=str(manifest),
+                report_html="<html>r</html>",
+                account_id="acc",
+                api_token="tok",
+                database_id="db",
+            )
+            self.assertEqual(run_id, "run-pub")
+            self.assertGreaterEqual(mock_d1_execute.call_count, 2)
+            self.assertEqual(get_run_id_from_manifest(str(manifest)), "run-pub")
 
     @patch("semantic_feedback._d1_execute")
     @patch("semantic_feedback._d1_query")
