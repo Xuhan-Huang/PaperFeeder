@@ -553,7 +553,6 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
     print("=" * 80)
     report = await summarize_papers(final_papers, config, priority_blogs=all_blogs)
 
-    feedback_attachment_paths: List[str] = []
     email_report = report
     # Export feedback manifest for human-in-the-loop seed updates (non-blocking).
     try:
@@ -570,7 +569,6 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
             manifest_path, questionnaire_path = feedback_artifacts
             print(f"   ✅ Feedback manifest exported: {manifest_path}")
             print(f"   ✅ Feedback questionnaire template exported: {questionnaire_path}")
-            feedback_attachment_paths = [str(manifest_path), str(questionnaire_path)]
             try:
                 web_report = inject_feedback_actions_into_report(report, str(manifest_path))
                 run_id = get_run_id_from_manifest(str(manifest_path))
@@ -620,10 +618,7 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
         )
         print("✅ Report saved to report_preview.html")
     else:
-        attachments = _build_email_attachments(feedback_attachment_paths)
-        if attachments:
-            print(f"   📎 Attaching {len(attachments)} feedback JSON file(s) to email")
-        await send_email(email_report, config, attachments=attachments)
+        await send_email(email_report, config)
     
     print("\n" + "=" * 80)
     print("✨ Pipeline Complete!")
