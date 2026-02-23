@@ -8,7 +8,10 @@ An intelligent content recommendation system that automatically fetches, filters
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-📌 **Recent updates:** see [UPDATE.md](UPDATE.md)
+📌 **Recent updates:**
+- Semantic Scholar personalization is now production-ready (seed profile + anti-repetition memory + web feedback loop).
+- Feedback flow is now digest-notification + web viewer actions (manual apply gate preserved).
+- Full changelog: [UPDATE.md](UPDATE.md)
 
 ---
 
@@ -46,6 +49,11 @@ Fetch Papers → Fetch Blogs → Keyword Filter → LLM Coarse Filter → Resear
 - Supports any OpenAI-compatible LLM (OpenAI, Claude, Gemini, DeepSeek, Qwen, local models)
 - PDF multimodal input for deep analysis (Claude, Gemini)
 - Customizable research interests and filtering criteria
+
+### 🧠 **Semantic Scholar Personalization**
+- Seed-based recommendations (`positive_paper_ids` / `negative_paper_ids`)
+- Anti-repetition memory (`semantic_scholar_memory.json`) with TTL
+- Human preference loop via web viewer (`positive` / `negative`) + manual apply
 
 ---
 
@@ -127,6 +135,81 @@ Use **GitHub Actions** for **FREE** automated deployment (no server needed):
 **👉 See [DEPLOY.md](DEPLOY.md) for complete setup guide** (takes ~5 minutes)
 
 ✨ **Recommended**: Start with `--dry-run` locally to test your configuration, then deploy to GitHub Actions for daily automation!
+
+---
+
+## 🧠 Semantic Scholar Personalization
+
+This is the main personalization feature in PaperFeeder:
+- seed profile controls recommendation direction
+- memory avoids repeated recommendations
+- web feedback updates preferences (via manual apply)
+
+### 1) Seed + Memory Setup
+
+Configure `config.yaml`:
+
+```yaml
+semantic_scholar_enabled: true
+semantic_scholar_max_results: 30
+semantic_scholar_seeds_path: "semantic_scholar_seeds.json"
+semantic_memory_enabled: true
+semantic_memory_path: "semantic_scholar_memory.json"
+semantic_seen_ttl_days: 30
+semantic_memory_max_ids: 5000
+```
+
+Create `semantic_scholar_seeds.json`:
+
+```json
+{
+  "positive_paper_ids": ["CorpusId:282913080", "CorpusId:270562552"],
+  "negative_paper_ids": ["CorpusId:283933653"]
+}
+```
+
+Notes:
+- Numeric IDs are auto-normalized to `CorpusId:<id>`.
+- `positive_paper_ids` = "more like this", `negative_paper_ids` = "avoid this direction".
+
+### 2) Preference Feedback Flow (Current)
+
+1. Run `Daily Paper Digest`.
+2. Open digest email.
+3. Click run-level web viewer link.
+4. Click `positive` / `negative` in viewer.
+5. Run `Apply Feedback Queue`:
+   - `dry_run=true` first
+   - then `dry_run=false` to persist seeds.
+
+Required keys (GitHub Secrets / `.env`):
+
+```bash
+FEEDBACK_ENDPOINT_BASE_URL=https://paperfeeder-feedback.<subdomain>.workers.dev
+FEEDBACK_LINK_SIGNING_SECRET=<shared-secret>
+FEEDBACK_TOKEN_TTL_DAYS=7
+FEEDBACK_REVIEWER=<optional reviewer override>
+
+CLOUDFLARE_ACCOUNT_ID=<account-id>
+CLOUDFLARE_API_TOKEN=<api-token>
+D1_DATABASE_ID=<database-id>
+```
+
+### 3) State Branch Model (Recommended)
+
+- Default: if `SEED_STATE_BRANCH` is unset, workflows use `memory-state`.
+- Seeds + memory are loaded from state branch before run.
+- Apply writes seeds back to state branch.
+- Digest writes memory back to state branch.
+
+### 4) What You Actually Need Daily
+
+- Needed daily: `Daily Paper Digest` + `Apply Feedback Queue` workflows.
+- Optional/local debug: `scripts/apply_semantic_feedback_queue.sh`.
+
+Details:
+- Personalization operations: `docs/PERSONALIZATION_AND_MEMORY.md`
+- Cloudflare + D1 manual setup: `docs/FEEDBACK_INFRA_SETUP.md`
 
 ---
 
@@ -434,75 +517,6 @@ Or just add URLs (metadata auto-fetched):
   ]
 }
 ```
-
-### Semantic Scholar Recommendations (Seed-Based)
-
-Use Semantic Scholar as an additional source with memory + preference feedback.
-
-1. Configure `config.yaml` (or env overrides):
-
-```yaml
-semantic_scholar_enabled: true
-semantic_scholar_max_results: 30
-semantic_scholar_seeds_path: "semantic_scholar_seeds.json"
-semantic_memory_enabled: true
-semantic_memory_path: "semantic_scholar_memory.json"
-semantic_seen_ttl_days: 30
-semantic_memory_max_ids: 5000
-```
-
-2. Create/edit `semantic_scholar_seeds.json` (standard style):
-
-```json
-{
-  "positive_paper_ids": ["CorpusId:282913080", "CorpusId:270562552"],
-  "negative_paper_ids": ["CorpusId:283933653"]
-}
-```
-
-Notes:
-- Numeric IDs are auto-normalized to `CorpusId:<id>`.
-- `positive_paper_ids` means "more like this"; `negative_paper_ids` means "avoid this direction".
-- For day-to-day usage and operations, see `docs/PERSONALIZATION_AND_MEMORY.md`.
-
-### Preference Feedback (Current Flow)
-
-Email stays digest-only. If you want to give preference feedback, open the run-level web viewer link in the email and click `positive` / `negative` there.
-
-Required keys (GitHub Secrets / `.env`):
-
-```bash
-FEEDBACK_ENDPOINT_BASE_URL=https://paperfeeder-feedback.<subdomain>.workers.dev
-FEEDBACK_LINK_SIGNING_SECRET=<shared-secret>
-FEEDBACK_TOKEN_TTL_DAYS=7
-FEEDBACK_REVIEWER=<optional reviewer override>
-
-CLOUDFLARE_ACCOUNT_ID=<account-id>
-CLOUDFLARE_API_TOKEN=<api-token>
-D1_DATABASE_ID=<database-id>
-```
-
-Recommended usage (easy mode):
-1. Run `Daily Paper Digest`.
-2. Open email -> click one web viewer link.
-3. Click `positive` / `negative` in web viewer.
-4. Run `Apply Feedback Queue` action:
-   - `dry_run=true` first
-   - then `dry_run=false` to persist seeds.
-
-Notes:
-- Queue-first policy: clicks create `pending` events only.
-- Seeds are updated only by manual apply action.
-- `scripts/apply_semantic_feedback_queue.sh` is optional for local debugging, not required for normal GitHub Actions use.
-
-Detailed infrastructure setup (Cloudflare Worker + D1 schema + secrets):
-- `docs/FEEDBACK_INFRA_SETUP.md`
-
-Notes on state branch:
-- Default behavior: if `SEED_STATE_BRANCH` is not set, workflows use `memory-state`.
-- Seeds and memory state are loaded from `memory-state` branch by default (override with repo variable `SEED_STATE_BRANCH`).
-- The manual apply workflow persists `semantic_scholar_seeds.json` to that state branch (not `main`).
-- Daily digest persists memory updates to that same state branch.
 
 ### Operational Notes (Dedup + Memory + Daily Ops)
 
