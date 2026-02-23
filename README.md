@@ -499,6 +499,7 @@ Detailed infrastructure setup (Cloudflare Worker + D1 schema + secrets):
 - `docs/FEEDBACK_INFRA_SETUP.md`
 
 Notes on state branch:
+- Default behavior: if `SEED_STATE_BRANCH` is not set, workflows use `memory-state`.
 - Seeds and memory state are loaded from `memory-state` branch by default (override with repo variable `SEED_STATE_BRANCH`).
 - The manual apply workflow persists `semantic_scholar_seeds.json` to that state branch (not `main`).
 - Daily digest persists memory updates to that same state branch.

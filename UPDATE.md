@@ -1,5 +1,44 @@
 # Updates Log
 
+## 2026-02-22
+
+### 1) Feedback Flow Moved to Web Report Viewer (Email = Notification Only)
+
+- Digest email now stays content-focused and includes a single run-level web viewer entry link.
+- Feedback actions are completed in the web viewer context (not inside email client body).
+- Web viewer uses the original report HTML and keeps per-paper feedback controls (`positive` / `negative`).
+
+### 2) Cloudflare D1 Apply Bridge Completed
+
+- Manual apply path now supports reading pending feedback events directly from D1 (`--from-d1`), defaulting to all pending events.
+- Apply writes terminal statuses (`applied` / `rejected`) back to D1 with metadata.
+- Preserved backward-compatible local queue mode (`--from-queue`) for local debugging.
+
+### 3) Seed + Memory State Persistence on Dedicated State Branch
+
+- Workflows now load/persist mutable state (`semantic_scholar_seeds.json`, `semantic_scholar_memory.json`) from a dedicated state branch (`memory-state` by default).
+- This avoids frequent `main` branch conflicts from bot-updated state files.
+- Added `SEED_STATE_BRANCH` repo variable support for branch override.
+
+### 4) Feedback Reliability and UX Improvements
+
+- Feedback tokens now include `semantic_paper_id`, and worker writes `resolved_semantic_paper_id` directly to D1 queue rows.
+- Removed `undecided` from one-click web feedback actions for V1 operation.
+- Added inline click UX in web viewer (small success/fail animation/toast, no page redirect per click).
+
+### 5) Email Attachments Simplified
+
+- Removed manifest/template JSON attachments from digest emails.
+- Artifacts are still generated/uploaded for workflow/debug use when needed.
+
+### 6) Documentation Refresh
+
+- README cleaned up to reflect only current production flow (seed + memory + web feedback + manual apply).
+- Added dedicated docs:
+  - `docs/PERSONALIZATION_AND_MEMORY.md`
+  - `docs/FEEDBACK_INFRA_SETUP.md`
+- Moved Cloudflare/D1 low-level setup details out of README into focused infra documentation.
+
 ## 2026-02-21
 
 ### 1) Semantic Memory Persistence Moved to Dedicated Branch

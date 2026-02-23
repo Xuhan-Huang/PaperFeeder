@@ -89,6 +89,9 @@ Repo variable:
 SEED_STATE_BRANCH=memory-state
 ```
 
+Default:
+- If `SEED_STATE_BRANCH` is not set, workflows automatically fall back to `memory-state`.
+
 ## 6. Dedup behavior (important)
 
 Current default dedup rules:

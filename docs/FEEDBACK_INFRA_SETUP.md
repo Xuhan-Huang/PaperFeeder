@@ -56,6 +56,34 @@ CREATE TABLE IF NOT EXISTS feedback_runs (
 );
 ```
 
+## 2.1 Cloudflare setup by hand (Dashboard)
+
+1. Create D1 database
+- Cloudflare Dashboard -> Workers & Pages -> D1 -> Create database.
+- Copy the database ID for `D1_DATABASE_ID`.
+
+2. Create/choose Worker
+- Workers & Pages -> Create Worker (or open existing worker).
+- Paste/update worker code from `cloudflare/feedback_worker.js`.
+
+3. Bind D1 to Worker
+- Worker -> Settings -> Bindings -> Add binding -> D1 database.
+- Binding name must be `DB` (matches code).
+
+4. Add Worker secret
+- Worker -> Settings -> Variables and Secrets -> Add secret:
+  - `FEEDBACK_LINK_SIGNING_SECRET` (must match GitHub secret).
+
+5. Deploy Worker
+- Click Deploy.
+- Verify endpoint:
+  - `https://<worker-subdomain>.workers.dev/run?run_id=<known-run-id>`
+
+6. Run D1 schema SQL
+- D1 -> your database -> Console/Query.
+- Run SQL from `cloudflare/d1_feedback_events.sql`.
+- Verify tables exist: `feedback_events`, `feedback_runs`.
+
 ## 3. Runtime flow
 
 1. Digest run writes run report HTML to `feedback_runs`.
