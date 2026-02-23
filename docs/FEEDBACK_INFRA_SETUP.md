@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS feedback_runs (
 
 1. Digest run writes run report HTML to `feedback_runs`.
 2. Email includes one run-level URL: `/run?run_id=<id>`.
-3. User clicks `positive` / `negative` in viewer.
+3. User clicks `positive` / `negative` / `undecided` in viewer.
 4. Worker inserts `pending` row to `feedback_events`.
 5. `Apply Feedback Queue` action resolves pending events into `semantic_scholar_seeds.json`.
 

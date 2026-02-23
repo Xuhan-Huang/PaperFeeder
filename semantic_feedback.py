@@ -145,7 +145,7 @@ def _build_action_links(
     base = base_url.rstrip("/")
     out: Dict[str, str] = {}
     exp = _to_iso(_utc_now().replace(microsecond=0) + timedelta(days=max(1, token_ttl_days)))
-    for label in ("positive", "negative"):
+    for label in ("positive", "negative", "undecided"):
         claims = {
             "v": 1,
             "run_id": run_id,
@@ -283,6 +283,8 @@ def inject_feedback_actions_into_report(report_html: str, manifest_path: str) ->
             actions.append(f'<a class="pf-feedback-btn positive" href="{links["positive"]}">👍 Positive</a>')
         if links.get("negative"):
             actions.append(f'<a class="pf-feedback-btn negative" href="{links["negative"]}">👎 Negative</a>')
+        if links.get("undecided"):
+            actions.append(f'<a class="pf-feedback-btn undecided" href="{links["undecided"]}">🤔 Undecided</a>')
         if not actions:
             return whole
         action_html = '<span class="pf-feedback-actions">' + " ".join(actions) + "</span>"
@@ -296,6 +298,7 @@ def inject_feedback_actions_into_report(report_html: str, manifest_path: str) ->
 .pf-feedback-btn{font-size:.72em;padding:2px 6px;border-radius:10px;text-decoration:none;border:1px solid #ccc;background:#f8f8f8;color:#333}
 .pf-feedback-btn.positive{border-color:#59a96a;background:#eff9f2;color:#1f6a30}
 .pf-feedback-btn.negative{border-color:#c85f5f;background:#fff1f1;color:#8f1f1f}
+.pf-feedback-btn.undecided{border-color:#7a7d91;background:#f4f5fa;color:#374151}
 .pf-feedback-btn.is-loading{opacity:.6;pointer-events:none}
 .pf-feedback-btn.is-selected{box-shadow:0 0 0 2px rgba(40,120,220,.22) inset}
 .pf-feedback-toast{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.94);min-width:240px;max-width:86vw;padding:14px 18px;border-radius:14px;font-size:15px;font-weight:700;text-align:center;z-index:9999;opacity:0;pointer-events:none;transition:opacity .22s ease,transform .22s ease;box-shadow:0 12px 40px rgba(8,16,40,.34)}
@@ -303,6 +306,7 @@ def inject_feedback_actions_into_report(report_html: str, manifest_path: str) ->
 .pf-feedback-toast.ok{color:#fff;background:linear-gradient(135deg,#2f855a,#38a169)}
 .pf-feedback-toast.bad{color:#fff;background:linear-gradient(135deg,#b83280,#d53f8c)}
 .pf-feedback-toast.err{color:#fff;background:linear-gradient(135deg,#2d3748,#4a5568)}
+.pf-feedback-toast.neu{color:#fff;background:linear-gradient(135deg,#4b5563,#6b7280)}
 .pf-feedback-toast .icon{margin-right:8px}
 @keyframes pfPulse{0%{transform:translate(-50%,-50%) scale(.92)}55%{transform:translate(-50%,-50%) scale(1.04)}100%{transform:translate(-50%,-50%) scale(1)}}
 .pf-feedback-toast.show{animation:pfPulse .34s ease}
@@ -343,6 +347,8 @@ def inject_feedback_actions_into_report(report_html: str, manifest_path: str) ->
       a.classList.add('is-selected');
       if(a.classList.contains('positive')){
         showToast('<span class="icon">✅</span>Saved as Positive', 'ok');
+      }else if(a.classList.contains('undecided')){
+        showToast('<span class="icon">↩️</span>Reset to Undecided', 'neu');
       }else{
         showToast('<span class="icon">🧪</span>Saved as Negative', 'bad');
       }
@@ -647,8 +653,9 @@ def apply_feedback_to_seeds(
             positive.discard(semantic_id)
             applied_count += 1
         else:
-            # undecided keeps seeds unchanged
-            pass
+            positive.discard(semantic_id)
+            negative.discard(semantic_id)
+            applied_count += 1
 
     output = {
         "positive_paper_ids": _sort_seed_ids(positive),
@@ -773,7 +780,9 @@ def apply_feedback_queue_to_seeds(
         elif label == "negative":
             negative.add(semantic_id)
             positive.discard(semantic_id)
-        # undecided mutates nothing but still considered applied to close event lifecycle
+        else:
+            positive.discard(semantic_id)
+            negative.discard(semantic_id)
         e["status"] = "applied"
         e["applied_at"] = now_iso
         e["error"] = None
@@ -1005,6 +1014,9 @@ def apply_feedback_d1_to_seeds(
         elif label == "negative":
             negative.add(semantic_id)
             positive.discard(semantic_id)
+        else:
+            positive.discard(semantic_id)
+            negative.discard(semantic_id)
         e["status"] = "applied"
         e["applied_at"] = now_iso
         e["error"] = None

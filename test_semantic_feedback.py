@@ -126,6 +126,66 @@ class SemanticFeedbackTests(unittest.TestCase):
             self.assertEqual(updated["positive_paper_ids"], ["CorpusId:222"])
             self.assertEqual(updated["negative_paper_ids"], ["CorpusId:111"])
 
+    def test_apply_feedback_undecided_resets_seed_membership(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            manifest = td_path / "manifest.json"
+            feedback = td_path / "feedback.json"
+            seeds = td_path / "seeds.json"
+
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "version": "v1",
+                        "run_id": "run-reset",
+                        "generated_at": "2026-02-21T08:10:00Z",
+                        "papers": [
+                            {
+                                "item_id": "p01",
+                                "title": "A",
+                                "url": "https://arxiv.org/abs/1",
+                                "semantic_paper_id": "CorpusId:111",
+                            }
+                        ],
+                    }
+                )
+                + "\n"
+            )
+            feedback.write_text(
+                json.dumps(
+                    {
+                        "version": "v1",
+                        "run_id": "run-reset",
+                        "reviewer": "u",
+                        "reviewed_at": "2026-02-21T09:00:00Z",
+                        "labels": [
+                            {"item_id": "p01", "label": "undecided", "reviewed_at": "2026-02-21T09:01:00Z"}
+                        ],
+                    }
+                )
+                + "\n"
+            )
+            seeds.write_text(
+                json.dumps(
+                    {
+                        "positive_paper_ids": ["CorpusId:111"],
+                        "negative_paper_ids": [],
+                    }
+                )
+                + "\n"
+            )
+
+            result = apply_feedback_to_seeds(
+                feedback_path=str(feedback),
+                manifest_path=str(manifest),
+                seeds_path=str(seeds),
+                dry_run=False,
+            )
+            self.assertEqual(result["applied_count"], 1)
+            updated = json.loads(seeds.read_text())
+            self.assertEqual(updated["positive_paper_ids"], [])
+            self.assertEqual(updated["negative_paper_ids"], [])
+
     def test_apply_feedback_rejects_run_id_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
@@ -303,6 +363,64 @@ class SemanticFeedbackTests(unittest.TestCase):
             self.assertIn("CorpusId:200", updated_seeds["positive_paper_ids"])
             self.assertIn("CorpusId:100", updated_seeds["negative_paper_ids"])
 
+    def test_apply_queue_undecided_resets_seed_membership(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            manifest = td_path / "manifest.json"
+            queue = td_path / "queue.json"
+            seeds = td_path / "seeds.json"
+
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "version": "v1",
+                        "run_id": "run-1",
+                        "generated_at": "2026-02-21T08:10:00Z",
+                        "papers": [
+                            {"item_id": "p01", "title": "A", "url": "u1", "semantic_paper_id": "CorpusId:100"}
+                        ],
+                    }
+                )
+                + "\n"
+            )
+            queue.write_text(
+                json.dumps(
+                    {
+                        "version": "v1",
+                        "events": [
+                            {
+                                "event_id": "evt_1",
+                                "run_id": "run-1",
+                                "item_id": "p01",
+                                "label": "undecided",
+                                "reviewer": "x",
+                                "created_at": "2026-02-21T10:02:00Z",
+                                "source": "web_viewer",
+                                "status": "pending",
+                                "resolved_semantic_paper_id": None,
+                                "applied_at": None,
+                                "error": None,
+                            }
+                        ],
+                    }
+                )
+                + "\n"
+            )
+            seeds.write_text(
+                json.dumps({"positive_paper_ids": ["CorpusId:100"], "negative_paper_ids": []}) + "\n"
+            )
+
+            result = apply_feedback_queue_to_seeds(
+                manifest_path=str(manifest),
+                queue_path=str(queue),
+                seeds_path=str(seeds),
+                dry_run=False,
+            )
+            self.assertEqual(result["applied_count"], 1)
+            updated = json.loads(seeds.read_text())
+            self.assertEqual(updated["positive_paper_ids"], [])
+            self.assertEqual(updated["negative_paper_ids"], [])
+
     def test_manifest_with_action_links_injects_buttons(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             papers = [
@@ -330,7 +448,7 @@ class SemanticFeedbackTests(unittest.TestCase):
             updated = inject_feedback_actions_into_report(html, str(manifest_path))
             self.assertIn("pf-feedback-actions", updated)
             self.assertIn("Positive", updated)
-            self.assertNotIn("Undecided", updated)
+            self.assertIn("Undecided", updated)
 
     def test_build_and_inject_feedback_entry_link(self) -> None:
         html = "<html><head></head><body><h1>Paper Digest</h1></body></html>"
@@ -445,6 +563,43 @@ class SemanticFeedbackTests(unittest.TestCase):
             self.assertEqual(result["mode"], "d1")
             self.assertEqual(result["d1_pending_count"], 2)
             self.assertEqual(result["applied_count"], 2)
+
+    @patch("semantic_feedback._d1_execute")
+    @patch("semantic_feedback._d1_query")
+    def test_apply_d1_undecided_resets_seed_membership(self, mock_d1_query, _mock_d1_execute) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            seeds = td_path / "seeds.json"
+            seeds.write_text(json.dumps({"positive_paper_ids": ["CorpusId:100"], "negative_paper_ids": []}) + "\n")
+
+            mock_d1_query.return_value = [
+                {
+                    "event_id": "evt_1",
+                    "run_id": "run-a",
+                    "item_id": "p01",
+                    "label": "undecided",
+                    "reviewer": "x",
+                    "created_at": "2026-02-21T10:00:00Z",
+                    "source": "web_viewer",
+                    "status": "pending",
+                    "resolved_semantic_paper_id": "CorpusId:100",
+                    "applied_at": None,
+                    "error": None,
+                }
+            ]
+
+            result = apply_feedback_d1_to_seeds(
+                seeds_path=str(seeds),
+                dry_run=False,
+                account_id="acc",
+                api_token="tok",
+                database_id="db",
+                manifests_dir=str(td_path / "missing-artifacts"),
+            )
+            self.assertEqual(result["applied_count"], 1)
+            updated = json.loads(seeds.read_text())
+            self.assertEqual(updated["positive_paper_ids"], [])
+            self.assertEqual(updated["negative_paper_ids"], [])
 
     @patch("semantic_feedback._d1_query")
     def test_apply_d1_failure_does_not_write_seeds(self, mock_d1_query) -> None:

@@ -2,7 +2,7 @@
 
 This guide explains how to run PaperFeeder with:
 - Semantic Scholar anti-repetition memory
-- Human preference feedback (positive/negative)
+- Human preference feedback (positive/negative/undecided reset)
 - Queue-first apply flow
 
 ## 1. What each file does
@@ -69,10 +69,15 @@ D1_DATABASE_ID=<database-id>
 1. Run digest (local or GitHub Action).
 2. Open email digest.
 3. Click one run-level link to open web viewer.
-4. Click positive/negative on papers you care about.
+4. Click `positive` / `negative` / `undecided` on papers you care about.
 5. Run manual apply action:
    - `Apply Feedback Queue` (`dry_run=false`)
 6. Next digest reflects updated preference seeds.
+
+Label semantics:
+- `positive` -> add to positive and remove from negative
+- `negative` -> add to negative and remove from positive
+- `undecided` -> remove from both (reset)
 
 ## 5. State branch model (recommended)
 

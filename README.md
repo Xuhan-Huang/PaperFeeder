@@ -53,7 +53,7 @@ Fetch Papers → Fetch Blogs → Keyword Filter → LLM Coarse Filter → Resear
 ### 🧠 **Semantic Scholar Personalization**
 - Seed-based recommendations (`positive_paper_ids` / `negative_paper_ids`)
 - Anti-repetition memory (`semantic_scholar_memory.json`) with TTL
-- Human preference loop via web viewer (`positive` / `negative`) + manual apply
+- Human preference loop via web viewer (`positive` / `negative` / `undecided-reset`) + manual apply
 
 ---
 
@@ -177,7 +177,7 @@ Notes:
 1. Run `Daily Paper Digest`.
 2. Open digest email.
 3. Click run-level web viewer link.
-4. Click `positive` / `negative` in viewer.
+4. Click `positive` / `negative` / `undecided` in viewer.
 5. Run `Apply Feedback Queue`:
    - `dry_run=true` first
    - then `dry_run=false` to persist seeds.
@@ -194,6 +194,11 @@ CLOUDFLARE_ACCOUNT_ID=<account-id>
 CLOUDFLARE_API_TOKEN=<api-token>
 D1_DATABASE_ID=<database-id>
 ```
+
+Feedback semantics:
+- `positive`: add to positive seeds and remove from negative.
+- `negative`: add to negative seeds and remove from positive.
+- `undecided`: reset state by removing from both seed lists.
 
 ### 3) State Branch Model (Recommended)
 
