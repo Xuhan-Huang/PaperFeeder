@@ -218,8 +218,8 @@ Feedback semantics:
 - Optional/local debug: `scripts/apply_semantic_feedback_queue.sh`.
 
 Details:
-- Personalization operations: `docs/PERSONALIZATION_AND_MEMORY.md`
-- Cloudflare + D1 manual setup: `docs/FEEDBACK_INFRA_SETUP.md`
+- Personalization operations: [PERSONALIZATION_AND_MEMORY.md](docs/PERSONALIZATION_AND_MEMORY.md)
+- Cloudflare + D1 manual setup: [FEEDBACK_INFRA_SETUP.md](docs/FEEDBACK_INFRA_SETUP.md)
 
 ---
 
