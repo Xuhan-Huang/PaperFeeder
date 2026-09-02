@@ -616,23 +616,23 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
                     getattr(config, "feedback_endpoint_base_url", ""),
                     run_id,
                 )
-                if run_view_url:
-                    email_report = inject_feedback_entry_link(report, run_view_url)
-                    print("   ✅ Web feedback entry link injected into email report")
-                else:
+                if not run_view_url:
                     print("   ⚠️ Feedback endpoint base URL missing; skipped web feedback entry link")
-
-                try:
-                    publish_feedback_run_to_d1(
-                        manifest_path=str(manifest_path),
-                        report_html=web_report,
-                        account_id=getattr(config, "cloudflare_account_id", ""),
-                        api_token=getattr(config, "cloudflare_api_token", ""),
-                        database_id=getattr(config, "d1_database_id", ""),
-                    )
-                    print("   ✅ Published web viewer report to D1")
-                except Exception as e:
-                    print(f"   ⚠️ D1 run publish failed (non-blocking): {e}")
+                else:
+                    try:
+                        publish_feedback_run_to_d1(
+                            manifest_path=str(manifest_path),
+                            report_html=web_report,
+                            account_id=getattr(config, "cloudflare_account_id", ""),
+                            api_token=getattr(config, "cloudflare_api_token", ""),
+                            database_id=getattr(config, "d1_database_id", ""),
+                        )
+                    except Exception as e:
+                        print(f"   ⚠️ D1 run publish failed; skipped feedback email link: {e}")
+                    else:
+                        email_report = inject_feedback_entry_link(report, run_view_url)
+                        print("   ✅ Published web viewer report to D1")
+                        print("   ✅ Web feedback entry link injected into email report")
             except Exception as e:
                 print(f"   ⚠️ Feedback web-view build failed (non-blocking): {e}")
         else:
@@ -658,7 +658,9 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
         )
         print("✅ Report saved to report_preview.html")
     else:
-        await send_email(email_report, config)
+        email_sent = await send_email(email_report, config)
+        if not email_sent:
+            raise RuntimeError("Email delivery request failed")
     
     print("\n" + "=" * 80)
     print("✨ Pipeline Complete!")

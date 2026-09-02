@@ -4,8 +4,92 @@ Supports Resend and SendGrid.
 """
 
 import aiohttp
+import re
 from abc import ABC, abstractmethod
+from html import unescape
+from html.parser import HTMLParser
 from typing import Optional
+
+
+_SCRIPT_BLOCK_RE = re.compile(r"<script\b[^>]*>[\s\S]*?</script\s*>", re.IGNORECASE)
+_SCRIPT_TAG_RE = re.compile(r"<script\b[^>]*?/?>", re.IGNORECASE)
+
+
+def sanitize_email_html(html_content: str) -> str:
+    """Remove executable content that should never be present in email HTML."""
+    without_script_blocks = _SCRIPT_BLOCK_RE.sub("", html_content or "")
+    return _SCRIPT_TAG_RE.sub("", without_script_blocks)
+
+
+class _EmailTextExtractor(HTMLParser):
+    _BLOCK_TAGS = {
+        "address",
+        "article",
+        "blockquote",
+        "br",
+        "div",
+        "footer",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "header",
+        "li",
+        "main",
+        "p",
+        "section",
+        "table",
+        "tr",
+    }
+    _SUPPRESSED_TAGS = {"head", "script", "style"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.suppressed_depth = 0
+        self.link_stack: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
+        tag = tag.lower()
+        if tag in self._SUPPRESSED_TAGS:
+            self.suppressed_depth += 1
+            return
+        if self.suppressed_depth:
+            return
+        if tag in self._BLOCK_TAGS:
+            self.parts.append("\n")
+        if tag == "a":
+            href = next((value or "" for name, value in attrs if name.lower() == "href"), "")
+            self.link_stack.append(href.strip())
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in self._SUPPRESSED_TAGS:
+            self.suppressed_depth = max(0, self.suppressed_depth - 1)
+            return
+        if self.suppressed_depth:
+            return
+        if tag == "a" and self.link_stack:
+            href = self.link_stack.pop()
+            if href:
+                self.parts.append(f" ({href})")
+        if tag in self._BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self.suppressed_depth:
+            self.parts.append(data)
+
+
+def html_to_plain_text(html_content: str) -> str:
+    """Create a readable plain-text alternative while preserving link targets."""
+    parser = _EmailTextExtractor()
+    parser.feed(html_content or "")
+    parser.close()
+    lines = [" ".join(unescape(line).split()) for line in "".join(parser.parts).splitlines()]
+    return "\n".join(line for line in lines if line).strip()
 
 
 class BaseEmailer(ABC):
@@ -41,6 +125,8 @@ class ResendEmailer(BaseEmailer):
         attachments: Optional[list[dict]] = None,
     ) -> bool:
         """Send an email using Resend."""
+        safe_html_content = sanitize_email_html(html_content)
+        safe_text_content = text_content or html_to_plain_text(safe_html_content)
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -51,11 +137,11 @@ class ResendEmailer(BaseEmailer):
             "from": self.from_email,
             "to": [to] if isinstance(to, str) else to,
             "subject": subject,
-            "html": html_content,
+            "html": safe_html_content,
         }
         
-        if text_content:
-            payload["text"] = text_content
+        if safe_text_content:
+            payload["text"] = safe_text_content
         if attachments:
             payload["attachments"] = attachments
         
@@ -66,6 +152,10 @@ class ResendEmailer(BaseEmailer):
                 json=payload,
             ) as response:
                 if response.status == 200:
+                    result = await response.json()
+                    email_id = str(result.get("id", "")).strip()
+                    if email_id:
+                        print(f"   Resend email ID: {email_id}")
                     return True
                 else:
                     error = await response.text()
