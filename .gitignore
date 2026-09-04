@@ -34,6 +34,7 @@ semantic_feedback_queue.json
 # Local agent/workflow artifacts
 .codex/
 openspec/
+.trash/
 
 # OS
 .DS_Store

@@ -102,6 +102,21 @@ jobs:
           LLM_FILTER_API_KEY: ${{ secrets.LLM_FILTER_API_KEY }}
           LLM_FILTER_BASE_URL: ${{ secrets.LLM_FILTER_BASE_URL }}
           LLM_FILTER_MODEL: ${{ secrets.LLM_FILTER_MODEL }}
+          # Runner-local extraction and resilient holistic synthesis
+          SYNTHESIS_MODE: ${{ vars.SYNTHESIS_MODE }}
+          PAPER_EXTRACTION_MODE: ${{ vars.PAPER_EXTRACTION_MODE }}
+          PAPER_EVIDENCE_CHARS: ${{ vars.PAPER_EVIDENCE_CHARS }}
+          SYNTHESIS_AGGREGATE_CHARS: ${{ vars.SYNTHESIS_AGGREGATE_CHARS }}
+          EXTRACTION_QUALITY_THRESHOLD: ${{ vars.EXTRACTION_QUALITY_THRESHOLD }}
+          TEX_SOURCE_ENABLED: ${{ vars.TEX_SOURCE_ENABLED }}
+          TEX_SOURCE_MAX_PAPERS: ${{ vars.TEX_SOURCE_MAX_PAPERS }}
+          SYNTHESIS_TIMEOUT_SEC: ${{ vars.SYNTHESIS_TIMEOUT_SEC }}
+          SYNTHESIS_RETRIES: ${{ vars.SYNTHESIS_RETRIES }}
+          SYNTHESIS_STREAMING: ${{ vars.SYNTHESIS_STREAMING }}
+          SYNTHESIS_FAILURE_NOTIFICATION: ${{ vars.SYNTHESIS_FAILURE_NOTIFICATION }}
+          ADAPTIVE_COMPACTION_CONCURRENCY: ${{ vars.ADAPTIVE_COMPACTION_CONCURRENCY }}
+          ADAPTIVE_COMPACTION_MAX_TOKENS: ${{ vars.ADAPTIVE_COMPACTION_MAX_TOKENS }}
+          SYNTHESIS_MAX_OUTPUT_TOKENS: ${{ vars.SYNTHESIS_MAX_OUTPUT_TOKENS }}
           # Research enrichment
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           # 兼容旧配置
@@ -189,7 +204,7 @@ jobs:
         run: |
           echo "ZIP_NAME=" >> "$GITHUB_ENV"
           shopt -s nullglob
-          FILES=(artifacts/run_feedback_manifest_*.json artifacts/semantic_feedback_template_*.json)
+          FILES=(artifacts/run_feedback_manifest_*.json artifacts/semantic_feedback_template_*.json artifacts/extraction_quality_*.json)
           if [ ${#FILES[@]} -eq 0 ]; then
             echo "No feedback files found to package."
             exit 0

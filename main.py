@@ -22,10 +22,11 @@ from sources import ArxivSource, HuggingFaceSource, ManualSource, SemanticSchola
 from sources.blog_sources import fetch_blog_posts
 from filters import KeywordFilter, LLMFilter
 from researcher import PaperResearcher, MockPaperResearcher
-from summarizer import PaperSummarizer
+from summarizer import PaperSummarizer, SynthesisError
 from emailer import ResendEmailer, FileEmailer
 from config import Config
 from models import Paper, PaperSource
+from paper_extraction import ExtractionSettings
 from semantic_memory import SemanticMemoryStore, memory_keys_for_paper
 from semantic_feedback import (
     build_feedback_run_view_url,
@@ -429,6 +430,30 @@ async def summarize_papers(papers: list[Paper], config: Config, priority_blogs: 
     debug_save_pdfs = getattr(config, 'debug_save_pdfs', False)
     debug_pdf_dir = getattr(config, 'debug_pdf_dir', 'debug_pdfs')
     pdf_max_pages = getattr(config, 'pdf_max_pages', 10)
+    extraction_settings = ExtractionSettings(
+        enabled=bool(getattr(config, "extract_fulltext", True)),
+        mode=getattr(config, "paper_extraction_mode", "markdown"),
+        pdf_max_pages=pdf_max_pages,
+        pdf_download_timeout_sec=getattr(config, "pdf_download_timeout_sec", 60),
+        pdf_download_retries=getattr(config, "pdf_download_retries", 2),
+        pdf_max_bytes=getattr(config, "pdf_max_bytes", 25_000_000),
+        per_paper_chars=getattr(config, "paper_evidence_chars", 24_000),
+        aggregate_chars=getattr(config, "synthesis_aggregate_chars", 180_000),
+        quality_threshold=getattr(config, "extraction_quality_threshold", 70),
+        quality_min_chars_per_page=getattr(config, "extraction_quality_min_chars_per_page", 200),
+        quality_max_empty_page_ratio=getattr(config, "extraction_quality_max_empty_page_ratio", 0.5),
+        quality_min_coverage_ratio=getattr(config, "extraction_quality_min_coverage_ratio", 0.5),
+        quality_max_unreadable_ratio=getattr(config, "extraction_quality_max_unreadable_ratio", 0.02),
+        quality_max_duplicate_ratio=getattr(config, "extraction_quality_max_duplicate_ratio", 0.25),
+        tex_enabled=getattr(config, "tex_source_enabled", False),
+        tex_max_papers=getattr(config, "tex_source_max_papers", 3),
+        tex_download_timeout_sec=getattr(config, "tex_download_timeout_sec", 60),
+        tex_archive_max_bytes=getattr(config, "tex_archive_max_bytes", 20_000_000),
+        tex_expanded_max_bytes=getattr(config, "tex_expanded_max_bytes", 30_000_000),
+        tex_max_files=getattr(config, "tex_max_files", 250),
+        tex_file_max_bytes=getattr(config, "tex_file_max_bytes", 3_000_000),
+        tex_include_max_depth=getattr(config, "tex_include_max_depth", 6),
+    )
     
     summarizer = PaperSummarizer(
         api_key=config.llm_api_key,
@@ -437,7 +462,17 @@ async def summarize_papers(papers: list[Paper], config: Config, priority_blogs: 
         research_interests=config.research_interests,
         debug_save_pdfs=debug_save_pdfs,
         debug_pdf_dir=debug_pdf_dir,
-        pdf_max_pages=pdf_max_pages
+        pdf_max_pages=pdf_max_pages,
+        extraction_settings=extraction_settings,
+        synthesis_mode=getattr(config, "synthesis_mode", "structured"),
+        synthesis_timeout_sec=getattr(config, "synthesis_timeout_sec", 240),
+        synthesis_retries=getattr(config, "synthesis_retries", 2),
+        synthesis_retry_base_delay_sec=getattr(config, "synthesis_retry_base_delay_sec", 2.0),
+        synthesis_streaming=getattr(config, "synthesis_streaming", True),
+        adaptive_compaction_concurrency=getattr(config, "adaptive_compaction_concurrency", 3),
+        adaptive_compaction_max_tokens=getattr(config, "adaptive_compaction_max_tokens", 800),
+        synthesis_max_output_tokens=getattr(config, "synthesis_max_output_tokens", 4000),
+        blog_excerpt_chars=getattr(config, "blog_excerpt_chars", 1200),
     )
     
     # 使用PDF多模态输入（如果模型支持）
@@ -447,6 +482,31 @@ async def summarize_papers(papers: list[Paper], config: Config, priority_blogs: 
     )
     print("   ✅ Report generated!")
     return report
+
+
+async def send_synthesis_failure_notification(error: Exception, config: Config) -> bool:
+    """Send an operational notice without presenting a failed digest as content."""
+    print(f"\n📧 Sending synthesis failure notification to {config.email_to}...")
+    emailer = ResendEmailer(api_key=config.resend_api_key, from_email=config.email_from)
+    today = datetime.now().strftime("%Y-%m-%d")
+    error_type = type(error).__name__
+    html_content = f"""
+<div style="font-family:Arial,sans-serif;line-height:1.5;max-width:680px;margin:auto;padding:20px;">
+  <h2>⚠️ PaperFeeder synthesis failed</h2>
+  <p>No normal digest was produced for {today}.</p>
+  <p><strong>Error type:</strong> {error_type}</p>
+  <p>Paper identities, feedback state, semantic memory, and deduplication buffers were not advanced. The papers remain eligible for a later run.</p>
+</div>
+"""
+    return await emailer.send(
+        to=config.email_to,
+        subject=f"⚠️ PaperFeeder synthesis failed - {today}",
+        html_content=html_content,
+        text_content=(
+            f"PaperFeeder synthesis failed for {today}. Error type: {error_type}. "
+            "No feedback state, semantic memory, or deduplication buffers were advanced."
+        ),
+    )
 
 
 async def send_email(report: str, config: Config, attachments: Optional[List[dict]] = None) -> bool:
@@ -584,7 +644,28 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
     print("\n" + "=" * 80)
     print("STAGE 6: SYNTHESIS (Report Generation)")
     print("=" * 80)
-    report = await summarize_papers(final_papers, config, priority_blogs=all_blogs)
+    try:
+        report = await summarize_papers(final_papers, config, priority_blogs=all_blogs)
+    except SynthesisError as error:
+        print(f"   ⚠️ Synthesis degraded: {error}")
+        print("   ⭕ Skipping feedback publication, semantic memory, and deduplication state updates")
+        if dry_run:
+            file_emailer = FileEmailer("report_preview.html")
+            await file_emailer.send(
+                to=config.email_to,
+                subject=f"PaperFeeder synthesis failed - {datetime.now().strftime('%Y-%m-%d')}",
+                html_content=(
+                    "<h2>PaperFeeder synthesis failed</h2>"
+                    f"<p>Error type: {type(error).__name__}</p>"
+                    "<p>No persistent state was advanced.</p>"
+                ),
+            )
+        elif getattr(config, "synthesis_failure_notification", True):
+            notification_sent = await send_synthesis_failure_notification(error, config)
+            if not notification_sent:
+                print("   ⚠️ Synthesis failure notification could not be sent")
+        print("   ⚠️ Pipeline completed in degraded mode; papers remain eligible for a later run")
+        return
 
     email_report = report
     # Export feedback manifest for human-in-the-loop seed updates (non-blocking).
@@ -616,7 +697,9 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
                     getattr(config, "feedback_endpoint_base_url", ""),
                     run_id,
                 )
-                if not run_view_url:
+                if dry_run:
+                    print("   📝 Dry run: skipped D1 report publication and feedback email link")
+                elif not run_view_url:
                     print("   ⚠️ Feedback endpoint base URL missing; skipped web feedback entry link")
                 else:
                     try:
@@ -641,7 +724,10 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
         print(f"   ⚠️ Feedback manifest export failed (non-blocking): {e}")
 
     # Persist seen-memory only for report-visible final papers (non-blocking).
-    update_semantic_memory_from_report(final_papers, report, config)
+    if dry_run:
+        print("   📝 Dry run: skipped semantic memory update")
+    else:
+        update_semantic_memory_from_report(final_papers, report, config)
     
     # Output/Send
     print("\n" + "=" * 80)

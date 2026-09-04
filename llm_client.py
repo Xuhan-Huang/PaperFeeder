@@ -62,6 +62,7 @@ class LLMClient:
         base_url: str = "https://api.openai.com/v1",
         model: str = "gpt-4o-mini",
         timeout: int = 120,
+        max_retries: int = 2,
         debug_save_pdfs: bool = False,  # 是否保存PDF到本地用于调试
         debug_pdf_dir: str = "debug_pdfs",  # PDF保存目录
         pdf_max_pages: int = 10,  # PDF最大页数（0表示不限制）
@@ -86,11 +87,13 @@ class LLMClient:
                 api_key=api_key or "not-needed",  # 本地模型可能不需要
                 base_url=base_url,
                 timeout=httpx.Timeout(timeout),
+                max_retries=max(0, max_retries),
             )
             self.async_client = AsyncOpenAI(
                 api_key=api_key or "not-needed",
                 base_url=base_url,
                 timeout=httpx.Timeout(timeout),
+                max_retries=max(0, max_retries),
             )
     
     def chat(
@@ -138,6 +141,37 @@ class LLMClient:
                 temperature=temperature,
             )
             return response.choices[0].message.content
+
+    async def achat_stream(
+        self,
+        messages: list[dict],
+        max_tokens: int = 4000,
+        temperature: float = 0.7,
+    ) -> str:
+        """Stream a chat completion and return the accumulated text."""
+        if self.is_anthropic:
+            async with self.async_client.messages.stream(
+                model=self.model,
+                max_tokens=max_tokens,
+                messages=messages,
+            ) as stream:
+                return await stream.get_final_text()
+
+        stream = await self.async_client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True,
+        )
+        parts: list[str] = []
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            content = chunk.choices[0].delta.content
+            if isinstance(content, str):
+                parts.append(content)
+        return "".join(parts)
     
     async def achat_with_pdf(
         self,

@@ -47,7 +47,8 @@ Fetch Papers → Fetch Blogs → Keyword Filter → LLM Coarse Filter → Resear
 
 ### 🔧 **Flexible & Extensible**
 - Supports any OpenAI-compatible LLM (OpenAI, Claude, Gemini, DeepSeek, Qwen, local models)
-- PDF multimodal input for deep analysis (Claude, Gemini)
+- Runner-local PDF-to-Markdown extraction with plain-text and abstract fallbacks
+- Direct/Adaptive holistic synthesis with bounded context, streaming, and retries
 - Customizable research interests and filtering criteria
 
 ### 🧠 **Semantic Scholar Personalization**
@@ -90,6 +91,17 @@ Create a `.env` file:
 LLM_API_KEY=sk-xxxxx
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_MODEL=gpt-4o-mini
+
+# Structured synthesis overrides (optional; defaults shown)
+SYNTHESIS_MODE=structured
+PAPER_EXTRACTION_MODE=markdown
+PAPER_EVIDENCE_CHARS=24000
+SYNTHESIS_AGGREGATE_CHARS=180000
+EXTRACTION_QUALITY_THRESHOLD=70
+TEX_SOURCE_ENABLED=false
+SYNTHESIS_TIMEOUT_SEC=240
+SYNTHESIS_RETRIES=2
+SYNTHESIS_STREAMING=true
 
 # LLM Settings (Filter - for two-stage filtering)
 LLM_FILTER_API_KEY=sk-xxxxx  # Can use cheaper model
@@ -275,8 +287,9 @@ Details:
 │ Stage 6: SYNTHESIS (Report Generation)                      │
 │ • Senior Principal Researcher persona                       │
 │ • Blog filtering: Select Top 1-3 valuable posts             │
-│ • PDF multimodal input (if supported)                       │
-│ • Output: HTML report with MathJax support                  │
+│ • Runner-local PDF → Markdown/Text evidence                 │
+│ • Direct ≤180k chars; Adaptive fact compaction above limit  │
+│ • Opus 5 holistic JSON → deterministic canonical-link HTML  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -289,6 +302,7 @@ PaperFeeder/
 ├── blog_source.py       # Blog fetchers via RSS/Atom (NEW!)
 ├── filters.py           # Two-stage LLM filtering
 ├── researcher.py        # Tavily-powered community research
+├── paper_extraction.py  # Bounded PDF/TeX extraction and quality diagnostics
 ├── summarizer.py        # Report generation with blog & paper analysis
 ├── llm_client.py        # Universal LLM client (OpenAI-compatible)
 ├── emailer.py           # Email delivery (Resend, SendGrid, File)

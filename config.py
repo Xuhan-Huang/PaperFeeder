@@ -94,13 +94,40 @@ class Config:
 
     tavily_api_key: str = ""
     
-    # PDF Multimodal Input (more efficient than text extraction)
-    extract_fulltext: bool = True     # Use PDF multimodal input (direct PDF to model, saves tokens)
-                                      # If True and model supports (Claude/Gemini), sends PDF directly
-                                      # If False, only uses abstract
+    # Runner-local paper extraction and holistic synthesis
+    extract_fulltext: bool = True     # Download PDFs and extract bounded text on the runner
     fulltext_top_n: int = 5           # Deprecated, kept for compatibility
-    pdf_max_pages: int = 10           # Maximum pages to extract from PDF (0 = all pages, default: 10)
-                                      # Only first N pages are sent to LLM to save tokens
+    pdf_max_pages: int = 10
+    synthesis_mode: str = "structured"  # structured or legacy
+    paper_extraction_mode: str = "markdown"  # markdown, text, or auto
+    pdf_download_timeout_sec: int = 60
+    pdf_download_retries: int = 2
+    pdf_max_bytes: int = 25000000
+    paper_evidence_chars: int = 24000
+    synthesis_aggregate_chars: int = 180000
+    extraction_quality_threshold: int = 70
+    extraction_quality_min_chars_per_page: int = 200
+    extraction_quality_max_empty_page_ratio: float = 0.5
+    extraction_quality_min_coverage_ratio: float = 0.5
+    extraction_quality_max_unreadable_ratio: float = 0.02
+    extraction_quality_max_duplicate_ratio: float = 0.25
+    tex_source_enabled: bool = False
+    tex_source_max_papers: int = 3
+    tex_download_timeout_sec: int = 60
+    tex_archive_max_bytes: int = 20000000
+    tex_expanded_max_bytes: int = 30000000
+    tex_max_files: int = 250
+    tex_file_max_bytes: int = 3000000
+    tex_include_max_depth: int = 6
+    synthesis_timeout_sec: int = 240
+    synthesis_retries: int = 2
+    synthesis_retry_base_delay_sec: float = 2.0
+    synthesis_streaming: bool = True
+    synthesis_failure_notification: bool = True
+    adaptive_compaction_concurrency: int = 3
+    adaptive_compaction_max_tokens: int = 800
+    synthesis_max_output_tokens: int = 4000
+    blog_excerpt_chars: int = 1200
     
     # Source enablement settings
     papers_enabled: bool = True            # Enable fetching from paper sources (arXiv, HF, Manual)
@@ -183,6 +210,37 @@ class Config:
             "feedback_resolution_no_key_max_lookups": os.getenv("FEEDBACK_RESOLUTION_NO_KEY_MAX_LOOKUPS"),
             "feedback_resolution_time_budget_sec": os.getenv("FEEDBACK_RESOLUTION_TIME_BUDGET_SEC"),
             "feedback_resolution_run_cache_enabled": os.getenv("FEEDBACK_RESOLUTION_RUN_CACHE_ENABLED"),
+            # Structured extraction and holistic synthesis
+            "synthesis_mode": os.getenv("SYNTHESIS_MODE"),
+            "paper_extraction_mode": os.getenv("PAPER_EXTRACTION_MODE"),
+            "pdf_download_timeout_sec": os.getenv("PDF_DOWNLOAD_TIMEOUT_SEC"),
+            "pdf_download_retries": os.getenv("PDF_DOWNLOAD_RETRIES"),
+            "pdf_max_bytes": os.getenv("PDF_MAX_BYTES"),
+            "paper_evidence_chars": os.getenv("PAPER_EVIDENCE_CHARS"),
+            "synthesis_aggregate_chars": os.getenv("SYNTHESIS_AGGREGATE_CHARS"),
+            "extraction_quality_threshold": os.getenv("EXTRACTION_QUALITY_THRESHOLD"),
+            "extraction_quality_min_chars_per_page": os.getenv("EXTRACTION_QUALITY_MIN_CHARS_PER_PAGE"),
+            "extraction_quality_max_empty_page_ratio": os.getenv("EXTRACTION_QUALITY_MAX_EMPTY_PAGE_RATIO"),
+            "extraction_quality_min_coverage_ratio": os.getenv("EXTRACTION_QUALITY_MIN_COVERAGE_RATIO"),
+            "extraction_quality_max_unreadable_ratio": os.getenv("EXTRACTION_QUALITY_MAX_UNREADABLE_RATIO"),
+            "extraction_quality_max_duplicate_ratio": os.getenv("EXTRACTION_QUALITY_MAX_DUPLICATE_RATIO"),
+            "tex_source_enabled": os.getenv("TEX_SOURCE_ENABLED"),
+            "tex_source_max_papers": os.getenv("TEX_SOURCE_MAX_PAPERS"),
+            "tex_download_timeout_sec": os.getenv("TEX_DOWNLOAD_TIMEOUT_SEC"),
+            "tex_archive_max_bytes": os.getenv("TEX_ARCHIVE_MAX_BYTES"),
+            "tex_expanded_max_bytes": os.getenv("TEX_EXPANDED_MAX_BYTES"),
+            "tex_max_files": os.getenv("TEX_MAX_FILES"),
+            "tex_file_max_bytes": os.getenv("TEX_FILE_MAX_BYTES"),
+            "tex_include_max_depth": os.getenv("TEX_INCLUDE_MAX_DEPTH"),
+            "synthesis_timeout_sec": os.getenv("SYNTHESIS_TIMEOUT_SEC"),
+            "synthesis_retries": os.getenv("SYNTHESIS_RETRIES"),
+            "synthesis_retry_base_delay_sec": os.getenv("SYNTHESIS_RETRY_BASE_DELAY_SEC"),
+            "synthesis_streaming": os.getenv("SYNTHESIS_STREAMING"),
+            "synthesis_failure_notification": os.getenv("SYNTHESIS_FAILURE_NOTIFICATION"),
+            "adaptive_compaction_concurrency": os.getenv("ADAPTIVE_COMPACTION_CONCURRENCY"),
+            "adaptive_compaction_max_tokens": os.getenv("ADAPTIVE_COMPACTION_MAX_TOKENS"),
+            "synthesis_max_output_tokens": os.getenv("SYNTHESIS_MAX_OUTPUT_TOKENS"),
+            "blog_excerpt_chars": os.getenv("BLOG_EXCERPT_CHARS"),
             # Source enablement
             "papers_enabled": os.getenv("PAPERS_ENABLED"),
             "semantic_scholar_enabled": os.getenv("SEMANTIC_SCHOLAR_ENABLED"),
@@ -198,9 +256,9 @@ class Config:
             "blog_days_back": os.getenv("BLOG_DAYS_BACK"),
         }
         
-        # Apply environment variable overrides (only if value is not None)
+        # Apply environment variable overrides only when a non-empty value is provided.
         for key, value in env_overrides.items():
-            if value is not None:
+            if value not in (None, ""):
                 # Handle boolean conversion for source enablement
                 if key in (
                     "blogs_enabled",
@@ -209,6 +267,9 @@ class Config:
                     "semantic_memory_enabled",
                     "feedback_resolution_enabled",
                     "feedback_resolution_run_cache_enabled",
+                    "tex_source_enabled",
+                    "synthesis_streaming",
+                    "synthesis_failure_notification",
                 ):
                     config_data[key] = value.lower() not in ("false", "0", "no", "off")
                 # Handle int conversion for blog_days_back
@@ -222,9 +283,40 @@ class Config:
                     "feedback_resolution_max_lookups",
                     "feedback_resolution_no_key_max_lookups",
                     "feedback_resolution_time_budget_sec",
+                    "pdf_download_timeout_sec",
+                    "pdf_download_retries",
+                    "pdf_max_bytes",
+                    "paper_evidence_chars",
+                    "synthesis_aggregate_chars",
+                    "extraction_quality_threshold",
+                    "extraction_quality_min_chars_per_page",
+                    "tex_source_max_papers",
+                    "tex_download_timeout_sec",
+                    "tex_archive_max_bytes",
+                    "tex_expanded_max_bytes",
+                    "tex_max_files",
+                    "tex_file_max_bytes",
+                    "tex_include_max_depth",
+                    "synthesis_timeout_sec",
+                    "synthesis_retries",
+                    "adaptive_compaction_concurrency",
+                    "adaptive_compaction_max_tokens",
+                    "synthesis_max_output_tokens",
+                    "blog_excerpt_chars",
                 ):
                     try:
                         config_data[key] = int(value)
+                    except ValueError:
+                        pass
+                elif key in (
+                    "extraction_quality_max_empty_page_ratio",
+                    "extraction_quality_min_coverage_ratio",
+                    "extraction_quality_max_unreadable_ratio",
+                    "extraction_quality_max_duplicate_ratio",
+                    "synthesis_retry_base_delay_sec",
+                ):
+                    try:
+                        config_data[key] = float(value)
                     except ValueError:
                         pass
                 else:
@@ -264,6 +356,36 @@ class Config:
             "extract_fulltext": self.extract_fulltext,
             "fulltext_top_n": self.fulltext_top_n,
             "pdf_max_pages": getattr(self, 'pdf_max_pages', 10),
+            "synthesis_mode": self.synthesis_mode,
+            "paper_extraction_mode": self.paper_extraction_mode,
+            "pdf_download_timeout_sec": self.pdf_download_timeout_sec,
+            "pdf_download_retries": self.pdf_download_retries,
+            "pdf_max_bytes": self.pdf_max_bytes,
+            "paper_evidence_chars": self.paper_evidence_chars,
+            "synthesis_aggregate_chars": self.synthesis_aggregate_chars,
+            "extraction_quality_threshold": self.extraction_quality_threshold,
+            "extraction_quality_min_chars_per_page": self.extraction_quality_min_chars_per_page,
+            "extraction_quality_max_empty_page_ratio": self.extraction_quality_max_empty_page_ratio,
+            "extraction_quality_min_coverage_ratio": self.extraction_quality_min_coverage_ratio,
+            "extraction_quality_max_unreadable_ratio": self.extraction_quality_max_unreadable_ratio,
+            "extraction_quality_max_duplicate_ratio": self.extraction_quality_max_duplicate_ratio,
+            "tex_source_enabled": self.tex_source_enabled,
+            "tex_source_max_papers": self.tex_source_max_papers,
+            "tex_download_timeout_sec": self.tex_download_timeout_sec,
+            "tex_archive_max_bytes": self.tex_archive_max_bytes,
+            "tex_expanded_max_bytes": self.tex_expanded_max_bytes,
+            "tex_max_files": self.tex_max_files,
+            "tex_file_max_bytes": self.tex_file_max_bytes,
+            "tex_include_max_depth": self.tex_include_max_depth,
+            "synthesis_timeout_sec": self.synthesis_timeout_sec,
+            "synthesis_retries": self.synthesis_retries,
+            "synthesis_retry_base_delay_sec": self.synthesis_retry_base_delay_sec,
+            "synthesis_streaming": self.synthesis_streaming,
+            "synthesis_failure_notification": self.synthesis_failure_notification,
+            "adaptive_compaction_concurrency": self.adaptive_compaction_concurrency,
+            "adaptive_compaction_max_tokens": self.adaptive_compaction_max_tokens,
+            "synthesis_max_output_tokens": self.synthesis_max_output_tokens,
+            "blog_excerpt_chars": self.blog_excerpt_chars,
             "papers_enabled": self.papers_enabled,
             "manual_source_enabled": self.manual_source_enabled,
             "manual_source_path": self.manual_source_path,

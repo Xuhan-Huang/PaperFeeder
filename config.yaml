@@ -128,11 +128,41 @@ llm_filter_threshold: 6      # Use LLM filter if keyword-filtered papers > N
 max_papers: 10                # Maximum papers in final report (slightly higher for flexibility)
 
 # =============================================================================
-# PDF Multimodal Input
+# Runner-local paper extraction and holistic synthesis
 # =============================================================================
-extract_fulltext: true       # Use PDF multimodal input (more efficient)
+extract_fulltext: true       # Download selected PDFs and extract bounded local evidence
 fulltext_top_n: 3            # Deprecated, kept for compatibility
 pdf_max_pages: 15            # Max PDF pages to extract (0 = all)
+synthesis_mode: "structured" # structured or legacy rollback path
+paper_extraction_mode: "markdown"
+pdf_download_timeout_sec: 60
+pdf_download_retries: 2
+pdf_max_bytes: 25000000
+paper_evidence_chars: 24000
+synthesis_aggregate_chars: 180000
+extraction_quality_threshold: 70
+extraction_quality_min_chars_per_page: 200
+extraction_quality_max_empty_page_ratio: 0.5
+extraction_quality_min_coverage_ratio: 0.5
+extraction_quality_max_unreadable_ratio: 0.02
+extraction_quality_max_duplicate_ratio: 0.25
+tex_source_enabled: false
+tex_source_max_papers: 3
+tex_download_timeout_sec: 60
+tex_archive_max_bytes: 20000000
+tex_expanded_max_bytes: 30000000
+tex_max_files: 250
+tex_file_max_bytes: 3000000
+tex_include_max_depth: 6
+synthesis_timeout_sec: 240
+synthesis_retries: 2
+synthesis_retry_base_delay_sec: 2.0
+synthesis_streaming: true
+synthesis_failure_notification: true
+adaptive_compaction_concurrency: 3
+adaptive_compaction_max_tokens: 800
+synthesis_max_output_tokens: 4000
+blog_excerpt_chars: 1200
 
 # =============================================================================
 # Manual paper source

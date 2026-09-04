@@ -54,6 +54,20 @@ EMAIL_FROM               # e.g., papers@resend.dev
 EMAIL_TO                 # Your email address
 ```
 
+Optional repository **Variables** tune runner-local extraction and synthesis without changing code:
+
+```text
+SYNTHESIS_MODE=structured
+PAPER_EXTRACTION_MODE=markdown
+PAPER_EVIDENCE_CHARS=24000
+SYNTHESIS_AGGREGATE_CHARS=180000
+EXTRACTION_QUALITY_THRESHOLD=70
+TEX_SOURCE_ENABLED=false
+SYNTHESIS_TIMEOUT_SEC=240
+SYNTHESIS_RETRIES=2
+SYNTHESIS_STREAMING=true
+```
+
 ### Step 3: Enable GitHub Actions
 
 1. Go to **Actions** tab in your repo
@@ -317,12 +331,14 @@ Or use a scheduler container like [ofelia](https://github.com/mcuadros/ofelia).
 # Use cheap model for filtering (called 2x per paper)
 LLM_FILTER_MODEL=gpt-4o-mini
 
-# Use better model for summarization (called once)
-LLM_MODEL=gpt-4o
+# Use the primary model for one holistic final synthesis call
+LLM_MODEL=anthropic/claude-opus-5
 
 # Limit papers to save costs
 # In config.yaml:
 max_papers: 3  # Only summarize top 3
+synthesis_aggregate_chars: 180000
+paper_evidence_chars: 24000
 ```
 
 ### 3. Rate Limiting
@@ -427,8 +443,10 @@ python main.py --dry-run
 llm_filter_threshold: 10  # Process fewer papers
 max_papers: 3  # Summarize fewer papers
 
-# Limit PDF pages
-pdf_max_pages: 10  # Only first 10 pages
+# Limit runner-local extraction and holistic context
+pdf_max_pages: 10
+paper_evidence_chars: 16000
+synthesis_aggregate_chars: 120000
 ```
 
 ### arXiv Timeout
