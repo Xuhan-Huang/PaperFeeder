@@ -4,9 +4,10 @@ permissions:
   contents: write
 
 on:
-  # Run daily at 02:23 UTC (10:23 China time), avoiding top-of-hour congestion
+  # Run daily at 04:23 China time, leaving room for scheduler delays
   schedule:
-    - cron: '23 2 * * *'
+    - cron: '23 4 * * *'
+      timezone: 'Asia/Shanghai'
   
   # Allow manual trigger
   workflow_dispatch:
@@ -25,6 +26,7 @@ jobs:
   run-digest:
     runs-on: ubuntu-latest
     env:
+      TZ: Asia/Shanghai
       SEED_STATE_BRANCH: ${{ vars.SEED_STATE_BRANCH }}
     
     steps:
