@@ -100,7 +100,7 @@ class PaperSummarizer:
         synthesis_streaming: bool = True,
         adaptive_compaction_concurrency: int = 3,
         adaptive_compaction_max_tokens: int = 4096,
-        synthesis_max_output_tokens: int = 8192,
+        synthesis_max_output_tokens: int = 16384,
         blog_excerpt_chars: int = 1200,
         diagnostic_output_dir: str = "artifacts",
     ):
@@ -630,6 +630,7 @@ Return exactly this JSON shape:
         attempts = self.synthesis_retries + 1
         for attempt in range(1, attempts + 1):
             started = time.monotonic()
+            content = ""
             print(
                 f"   🤖 {purpose}: model={self.client.model} attempt={attempt}/{attempts} "
                 f"input_chars={input_chars} stream={self.synthesis_streaming}"
@@ -651,7 +652,8 @@ Return exactly this JSON shape:
                 retryable = not self._is_non_retryable(error)
                 print(
                     f"   ⚠️ {purpose}: {type(error).__name__} after {elapsed:.1f}s "
-                    f"retryable={retryable}"
+                    f"retryable={retryable} response_chars={len(content)} "
+                    f"ends_with_json={content.rstrip().endswith('}')}"
                 )
                 if not retryable or attempt >= attempts:
                     raise SynthesisError(f"{purpose} failed: {error}") from error

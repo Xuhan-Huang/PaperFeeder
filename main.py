@@ -471,7 +471,7 @@ async def summarize_papers(papers: list[Paper], config: Config, priority_blogs: 
         synthesis_streaming=getattr(config, "synthesis_streaming", True),
         adaptive_compaction_concurrency=getattr(config, "adaptive_compaction_concurrency", 3),
         adaptive_compaction_max_tokens=getattr(config, "adaptive_compaction_max_tokens", 4096),
-        synthesis_max_output_tokens=getattr(config, "synthesis_max_output_tokens", 8192),
+        synthesis_max_output_tokens=getattr(config, "synthesis_max_output_tokens", 16384),
         blog_excerpt_chars=getattr(config, "blog_excerpt_chars", 1200),
     )
     

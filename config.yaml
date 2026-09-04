@@ -161,7 +161,7 @@ synthesis_streaming: true
 synthesis_failure_notification: true
 adaptive_compaction_concurrency: 3
 adaptive_compaction_max_tokens: 4096
-synthesis_max_output_tokens: 8192
+synthesis_max_output_tokens: 16384
 blog_excerpt_chars: 1200
 
 # =============================================================================
