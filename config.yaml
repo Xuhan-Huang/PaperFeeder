@@ -160,8 +160,8 @@ synthesis_retry_base_delay_sec: 2.0
 synthesis_streaming: true
 synthesis_failure_notification: true
 adaptive_compaction_concurrency: 3
-adaptive_compaction_max_tokens: 800
-synthesis_max_output_tokens: 4000
+adaptive_compaction_max_tokens: 4096
+synthesis_max_output_tokens: 8192
 blog_excerpt_chars: 1200
 
 # =============================================================================

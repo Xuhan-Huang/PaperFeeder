@@ -125,8 +125,8 @@ class Config:
     synthesis_streaming: bool = True
     synthesis_failure_notification: bool = True
     adaptive_compaction_concurrency: int = 3
-    adaptive_compaction_max_tokens: int = 800
-    synthesis_max_output_tokens: int = 4000
+    adaptive_compaction_max_tokens: int = 4096
+    synthesis_max_output_tokens: int = 8192
     blog_excerpt_chars: int = 1200
     
     # Source enablement settings
