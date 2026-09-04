@@ -18,6 +18,7 @@ class SynthesisConfigTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             config = Config.from_yaml("config.yaml")
         self.assertEqual(config.synthesis_mode, "structured")
+        self.assertEqual(config.paper_evidence_chars, 18000)
         self.assertEqual(config.synthesis_aggregate_chars, 180000)
         self.assertEqual(config.extraction_quality_threshold, 70)
         self.assertFalse(config.tex_source_enabled)

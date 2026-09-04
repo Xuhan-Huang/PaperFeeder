@@ -44,7 +44,7 @@ class ExtractionSettings:
     pdf_download_timeout_sec: int = 60
     pdf_download_retries: int = 2
     pdf_max_bytes: int = 25_000_000
-    per_paper_chars: int = 24_000
+    per_paper_chars: int = 18_000
     aggregate_chars: int = 180_000
     quality_threshold: int = 70
     quality_min_chars_per_page: int = 200

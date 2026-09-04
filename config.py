@@ -103,7 +103,7 @@ class Config:
     pdf_download_timeout_sec: int = 60
     pdf_download_retries: int = 2
     pdf_max_bytes: int = 25000000
-    paper_evidence_chars: int = 24000
+    paper_evidence_chars: int = 18000
     synthesis_aggregate_chars: int = 180000
     extraction_quality_threshold: int = 70
     extraction_quality_min_chars_per_page: int = 200

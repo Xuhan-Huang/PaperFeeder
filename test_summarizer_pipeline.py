@@ -75,6 +75,7 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(messages[0]["content"], EDITORIAL_SYSTEM_PROMPT)
             self.assertIsInstance(messages[1]["content"], str)
             self.assertIn('<document id="p01"', messages[1]["content"])
+            self.assertIn("community_signals", messages[1]["content"])
             self.assertNotIn('"type": "document"', messages[1]["content"])
             self.assertTrue(summarizer.last_extraction_report_path.exists())
 
@@ -135,6 +136,35 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(records[0]["fallback"])
         self.assertEqual(records[0]["item_id"], "p01")
         self.assertEqual(records[0]["canonical_url"], paper.url)
+        self.assertEqual(records[0]["community_signals"], "notes")
+
+    def test_fact_validation_preserves_packet_community_signals(self) -> None:
+        paper = make_paper()
+        packet = EvidencePacket(
+            item_id="p01",
+            title=paper.title,
+            url=paper.url,
+            arxiv_id=paper.arxiv_id or "",
+            semantic_paper_id=paper.semantic_paper_id or "",
+            source="arxiv",
+            abstract=paper.abstract,
+            research_notes="Concrete community adoption evidence.",
+            content="bounded evidence",
+            extraction_source="pdf_markdown",
+        )
+        payload = {
+            "item_id": "p01",
+            "canonical_url": paper.url,
+            "core_claim": "claim",
+            "method": "method",
+            "evidence": [],
+            "limitations": [],
+            "surprising_points": [],
+            "selected_excerpts": [],
+        }
+        summarizer = PaperSummarizer(api_key="test", base_url="https://example.com/v1")
+        validated = summarizer._validate_fact_record(payload, packet)
+        self.assertEqual(validated["community_signals"], packet.research_notes)
 
     async def test_transient_error_is_retried(self) -> None:
         summarizer = PaperSummarizer(

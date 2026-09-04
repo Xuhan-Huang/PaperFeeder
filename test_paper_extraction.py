@@ -57,6 +57,11 @@ def build_tar(entries: dict[str, bytes], *, symlink: str = "") -> bytes:
 
 
 class ExtractionQualityTests(unittest.TestCase):
+    def test_default_ten_paper_budget_stays_in_direct_mode(self) -> None:
+        settings = ExtractionSettings()
+        self.assertEqual(settings.per_paper_chars, 18000)
+        self.assertLessEqual(settings.per_paper_chars * 10, settings.aggregate_chars)
+
     def test_quality_accepts_clean_markdown(self) -> None:
         page_texts = [
             "Reliable Paper Synthesis\nAbstract\n" + "Distinct evidence text. " * 80,

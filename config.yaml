@@ -138,7 +138,7 @@ paper_extraction_mode: "markdown"
 pdf_download_timeout_sec: 60
 pdf_download_retries: 2
 pdf_max_bytes: 25000000
-paper_evidence_chars: 24000
+paper_evidence_chars: 18000
 synthesis_aggregate_chars: 180000
 extraction_quality_threshold: 70
 extraction_quality_min_chars_per_page: 200

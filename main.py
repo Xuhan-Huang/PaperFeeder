@@ -437,7 +437,7 @@ async def summarize_papers(papers: list[Paper], config: Config, priority_blogs: 
         pdf_download_timeout_sec=getattr(config, "pdf_download_timeout_sec", 60),
         pdf_download_retries=getattr(config, "pdf_download_retries", 2),
         pdf_max_bytes=getattr(config, "pdf_max_bytes", 25_000_000),
-        per_paper_chars=getattr(config, "paper_evidence_chars", 24_000),
+        per_paper_chars=getattr(config, "paper_evidence_chars", 18_000),
         aggregate_chars=getattr(config, "synthesis_aggregate_chars", 180_000),
         quality_threshold=getattr(config, "extraction_quality_threshold", 70),
         quality_min_chars_per_page=getattr(config, "extraction_quality_min_chars_per_page", 200),
