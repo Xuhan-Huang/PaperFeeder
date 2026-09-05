@@ -567,12 +567,13 @@ class PaperContentExtractor:
             import inspect
 
             supported = inspect.signature(pymupdf4llm.to_markdown).parameters
+            accepts_options = any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in supported.values())
             options = {
                 "header": False, "footer": False, "use_ocr": False,
                 "ignore_images": True, "write_images": False, "page_chunks": True,
             }
             markdown = pymupdf4llm.to_markdown(
-                document, **{key: value for key, value in options.items() if key in supported}
+                document, **{key: value for key, value in options.items() if accepts_options or key in supported}
             )
             if isinstance(markdown, list):
                 return _clean_text("\n\n".join(

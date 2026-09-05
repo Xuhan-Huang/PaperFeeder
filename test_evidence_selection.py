@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import unittest
+from types import SimpleNamespace
 from dataclasses import replace
 from unittest.mock import patch
 
 from config import Config
 from evidence_selection import SelectionSettings, allocate, heading, select_evidence, selection_notes
-from paper_extraction import EvidencePacket
+from paper_extraction import EvidencePacket, ExtractionSettings, PaperContentExtractor
 from summarizer import PaperSummarizer
 
 
@@ -140,6 +141,21 @@ class SelectionTests(unittest.TestCase):
             self.assertNotIn("APPENDIX_SECRET", output)
         self.assertEqual(heading("**3.1** **SpiralNet**"), ("SpiralNet", 2))
         self.assertIsNone(heading("**38.4%**"))
+
+    def test_converter_kwargs_wrapper_preserves_pages_and_disables_ocr(self):
+        options = {}
+
+        def convert(*args, **kwargs):
+            options.update(kwargs)
+            return [{"text": "First page"}, {"text": "Second page"}]
+
+        with patch.dict("sys.modules", {"pymupdf4llm": SimpleNamespace(to_markdown=convert)}):
+            content = PaperContentExtractor(ExtractionSettings())._extract_markdown(object())
+        self.assertTrue(options["page_chunks"])
+        self.assertFalse(options["use_ocr"])
+        self.assertFalse(options["write_images"])
+        self.assertIn("<!-- evidence-page:1 -->", content)
+        self.assertIn("<!-- evidence-page:2 -->", content)
 
     def test_single_long_block_includes_middle_and_end(self):
         text = "opening " * 1000 + "central " * 1000 + "closing " * 1000
