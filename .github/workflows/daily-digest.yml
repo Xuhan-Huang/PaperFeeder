@@ -4,9 +4,9 @@ permissions:
   contents: write
 
 on:
-  # Run daily at 04:23 China time, leaving room for scheduler delays
+  # Run daily at 06:23 China time, leaving room for scheduler delays
   schedule:
-    - cron: '23 4 * * *'
+    - cron: '23 6 * * *'
       timezone: 'Asia/Shanghai'
   
   # Allow manual trigger
