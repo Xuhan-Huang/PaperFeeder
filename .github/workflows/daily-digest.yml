@@ -25,6 +25,10 @@ on:
         description: 'Optional synthesis effort: low, medium, high, xhigh, or max'
         required: false
         default: ''
+      evidence_selection:
+        description: 'Optional paper selection: section_balanced or head_tail'
+        required: false
+        default: ''
 
 jobs:
   run-digest:
@@ -111,6 +115,11 @@ jobs:
           PAPER_EXTRACTION_MODE: ${{ vars.PAPER_EXTRACTION_MODE }}
           PAPER_EVIDENCE_CHARS: ${{ vars.PAPER_EVIDENCE_CHARS }}
           SYNTHESIS_AGGREGATE_CHARS: ${{ vars.SYNTHESIS_AGGREGATE_CHARS }}
+          PAPER_EVIDENCE_SELECTION_MODE: ${{ github.event.inputs.evidence_selection || vars.PAPER_EVIDENCE_SELECTION_MODE }}
+          MAIN_BODY_FALLBACK_PAGES: ${{ vars.MAIN_BODY_FALLBACK_PAGES }}
+          SECTION_ROLE_WEIGHTS: ${{ vars.SECTION_ROLE_WEIGHTS }}
+          SECTION_BASELINE_CHARS: ${{ vars.SECTION_BASELINE_CHARS }}
+          SECTION_RESIDUAL_CAP: ${{ vars.SECTION_RESIDUAL_CAP }}
           EXTRACTION_QUALITY_THRESHOLD: ${{ vars.EXTRACTION_QUALITY_THRESHOLD }}
           TEX_SOURCE_ENABLED: ${{ vars.TEX_SOURCE_ENABLED }}
           TEX_SOURCE_MAX_PAPERS: ${{ vars.TEX_SOURCE_MAX_PAPERS }}

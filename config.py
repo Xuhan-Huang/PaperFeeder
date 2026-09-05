@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
+from evidence_selection import SelectionSettings
 
 
 @dataclass
@@ -105,6 +106,11 @@ class Config:
     pdf_max_bytes: int = 25000000
     paper_evidence_chars: int = 18000
     synthesis_aggregate_chars: int = 180000
+    paper_evidence_selection_mode: str = "section_balanced"
+    main_body_fallback_pages: int = 10
+    section_role_weights: list[float] = field(default_factory=lambda: [35, 40, 15, 10])
+    section_baseline_chars: int = 600
+    section_residual_cap: float = 0.5
     extraction_quality_threshold: int = 70
     extraction_quality_min_chars_per_page: int = 200
     extraction_quality_max_empty_page_ratio: float = 0.5
@@ -178,6 +184,15 @@ class Config:
     feedback_resolution_time_budget_sec: int = 20
     feedback_resolution_run_cache_enabled: bool = True
     
+    def __post_init__(self) -> None:
+        SelectionSettings(
+            mode=self.paper_evidence_selection_mode,
+            fallback_pages=self.main_body_fallback_pages,
+            role_weights=tuple(self.section_role_weights),
+            baseline_chars=self.section_baseline_chars,
+            residual_cap=self.section_residual_cap,
+        )
+
     @classmethod
     def from_yaml(cls, path: str) -> "Config":
         """Load config from YAML file, with env var overrides."""
@@ -213,6 +228,11 @@ class Config:
             "feedback_resolution_run_cache_enabled": os.getenv("FEEDBACK_RESOLUTION_RUN_CACHE_ENABLED"),
             # Structured extraction and holistic synthesis
             "synthesis_mode": os.getenv("SYNTHESIS_MODE"),
+            "paper_evidence_selection_mode": os.getenv("PAPER_EVIDENCE_SELECTION_MODE"),
+            "main_body_fallback_pages": os.getenv("MAIN_BODY_FALLBACK_PAGES"),
+            "section_role_weights": os.getenv("SECTION_ROLE_WEIGHTS"),
+            "section_baseline_chars": os.getenv("SECTION_BASELINE_CHARS"),
+            "section_residual_cap": os.getenv("SECTION_RESIDUAL_CAP"),
             "paper_extraction_mode": os.getenv("PAPER_EXTRACTION_MODE"),
             "pdf_download_timeout_sec": os.getenv("PDF_DOWNLOAD_TIMEOUT_SEC"),
             "pdf_download_retries": os.getenv("PDF_DOWNLOAD_RETRIES"),
@@ -261,6 +281,15 @@ class Config:
         # Apply environment variable overrides only when a non-empty value is provided.
         for key, value in env_overrides.items():
             if value not in (None, ""):
+                if key in {"main_body_fallback_pages", "section_baseline_chars"}:
+                    config_data[key] = int(value)
+                    continue
+                if key == "section_residual_cap":
+                    config_data[key] = float(value)
+                    continue
+                if key == "section_role_weights":
+                    config_data[key] = [float(part.strip()) for part in value.split(",")]
+                    continue
                 # Handle boolean conversion for source enablement
                 if key in (
                     "blogs_enabled",
@@ -365,6 +394,11 @@ class Config:
             "pdf_max_bytes": self.pdf_max_bytes,
             "paper_evidence_chars": self.paper_evidence_chars,
             "synthesis_aggregate_chars": self.synthesis_aggregate_chars,
+            "paper_evidence_selection_mode": self.paper_evidence_selection_mode,
+            "main_body_fallback_pages": self.main_body_fallback_pages,
+            "section_role_weights": self.section_role_weights,
+            "section_baseline_chars": self.section_baseline_chars,
+            "section_residual_cap": self.section_residual_cap,
             "extraction_quality_threshold": self.extraction_quality_threshold,
             "extraction_quality_min_chars_per_page": self.extraction_quality_min_chars_per_page,
             "extraction_quality_max_empty_page_ratio": self.extraction_quality_max_empty_page_ratio,

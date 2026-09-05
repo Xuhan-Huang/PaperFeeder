@@ -594,6 +594,33 @@ Or just add URLs (metadata auto-fetched):
 
 #### Troubleshooting
 
+Structured synthesis uses `paper_evidence_selection_mode: section_balanced`. It first
+identifies body sections, gives each substantive section up to 600 characters of basic
+coverage (budget permitting), and allocates remaining space with soft role preferences.
+Unfamiliar headings remain eligible; uncertain roles use capped length-based allocation.
+The initial residual cap is 50%, relaxed when other sections no longer need space.
+References and appendices are excluded when confidently identified. Otherwise the first
+10 extracted pages are used, with explicit warnings about missing later evidence.
+The PDF extraction cap remains 15 pages and the per-paper content ceiling remains 18,000
+characters. Abstracts, signals, and bounded selection notes add prompt overhead.
+
+`extraction_quality_*.json` includes separate `selection` coverage metadata. It records
+role confidence, baseline/residual budgets, partial/omitted sections, and page limitations;
+a high conversion-quality score does not imply complete evidence coverage. Selection notes
+also reach direct and adaptive synthesis. These heuristics cannot guarantee every result
+or proof is preserved. Set `PAPER_EVIDENCE_SELECTION_MODE=head_tail` to roll back selection.
+
+Optional Actions variables: `MAIN_BODY_FALLBACK_PAGES`, `SECTION_ROLE_WEIGHTS`
+(comma-separated method/results/background/conclusion weights, default `35,40,15,10`),
+`SECTION_BASELINE_CHARS`, and `SECTION_RESIDUAL_CAP`. For an offline fixed-source comparison:
+
+```bash
+python scripts/compare_evidence_selection.py artifacts/extraction_quality_<run_id>.json --output-dir .trash/evidence-comparison
+```
+
+The comparison downloads PDFs once and caches source text privately in the output directory;
+its block-prefix counts are coverage probes, not proof of factual completeness or token usage.
+
 - `LLM filter: Could not parse response (batch offset X)`:
   - Cause: model returned non-JSON/empty/invalid batch output.
   - Debug artifacts are saved in `llm_filter_debug/` with prompt + raw response.

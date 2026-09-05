@@ -18,6 +18,7 @@ from urllib.parse import quote
 import aiohttp
 
 from models import Paper
+from evidence_selection import SelectionSettings, select_evidence
 
 
 EXPECTED_SECTIONS = (
@@ -60,6 +61,18 @@ class ExtractionSettings:
     tex_max_files: int = 250
     tex_file_max_bytes: int = 3_000_000
     tex_include_max_depth: int = 6
+    selection_mode: str = "section_balanced"
+    main_body_fallback_pages: int = 10
+    section_role_weights: tuple[float, ...] = (35, 40, 15, 10)
+    section_baseline_chars: int = 600
+    section_residual_cap: float = 0.5
+
+    def selection_settings(self) -> SelectionSettings:
+        return SelectionSettings(
+            mode=self.selection_mode, fallback_pages=self.main_body_fallback_pages,
+            role_weights=tuple(self.section_role_weights), baseline_chars=self.section_baseline_chars,
+            residual_cap=self.section_residual_cap,
+        )
 
 
 @dataclass
@@ -93,6 +106,7 @@ class EvidencePacket:
     warnings: list[str] = field(default_factory=list)
     quality: Optional[ExtractionQuality] = None
     elapsed_seconds: float = 0.0
+    selection: dict[str, Any] = field(default_factory=dict)
 
     @property
     def content_chars(self) -> int:
@@ -116,6 +130,7 @@ class EvidencePacket:
             "warnings": list(self.warnings),
             "quality": self.quality.to_dict() if self.quality else None,
             "elapsed_seconds": round(self.elapsed_seconds, 3),
+            "selection": self.selection,
         }
 
 
@@ -389,6 +404,7 @@ def rebalance_packets(packets: list[EvidencePacket], total_limit: int, per_item_
 class PaperContentExtractor:
     def __init__(self, settings: ExtractionSettings):
         self.settings = settings
+        self.selection_settings = settings.selection_settings()
 
     async def extract(self, papers: list[Paper]) -> list[EvidencePacket]:
         candidates = []
@@ -450,7 +466,18 @@ class PaperContentExtractor:
                 candidate.warnings.append("abstract_fallback")
 
             original_chars = len(content)
-            content, truncated = truncate_evidence(content, self.settings.per_paper_chars)
+            selection = {}
+            if self.selection_settings.mode == "section_balanced" and source != "abstract":
+                content, selection = select_evidence(
+                    content, self.settings.per_paper_chars, self.selection_settings,
+                    total_pages=candidate.total_pages, processed_pages=candidate.processed_pages,
+                )
+                truncated = bool(selection["affected_section_count"] or selection["warnings"])
+            else:
+                content = re.sub(r"(?m)^<!-- evidence-page:\d+ -->\s*", "", content)
+                content, truncated = truncate_evidence(content, self.settings.per_paper_chars)
+                selection = {"strategy": "abstract" if source == "abstract" else "head_tail",
+                             "warnings": ["abstract_only"] if source == "abstract" else ["head_tail_selection"]}
             packet = EvidencePacket(
                 item_id=candidate.item_id,
                 title=candidate.paper.title,
@@ -470,6 +497,7 @@ class PaperContentExtractor:
                 warnings=list(dict.fromkeys(candidate.warnings)),
                 quality=candidate.quality,
                 elapsed_seconds=candidate.elapsed_seconds,
+                selection=selection,
             )
             packets.append(packet)
             score = packet.quality.score if packet.quality else "n/a"
@@ -508,7 +536,10 @@ class PaperContentExtractor:
             source_document.close()
             candidate.processed_pages = len(limited_document)
             page_texts = [page.get_text() for page in limited_document]
-            candidate.plain_text = _clean_text("\n\n".join(page_texts))
+            candidate.plain_text = _clean_text("\n\n".join(
+                f"<!-- evidence-page:{index + 1} -->\n{text}"
+                for index, text in enumerate(page_texts)
+            ))
             candidate.markdown = self._extract_markdown(limited_document)
             layout_risk = _multi_column_page_ratio(limited_document)
             candidate.quality = evaluate_markdown_quality(
@@ -533,18 +564,21 @@ class PaperContentExtractor:
         try:
             import pymupdf4llm
 
-            try:
-                markdown = pymupdf4llm.to_markdown(
-                    document,
-                    header=False,
-                    footer=False,
-                    use_ocr=False,
-                    ignore_images=True,
-                    write_images=False,
-                    page_separators=True,
-                )
-            except TypeError:
-                markdown = pymupdf4llm.to_markdown(document)
+            import inspect
+
+            supported = inspect.signature(pymupdf4llm.to_markdown).parameters
+            options = {
+                "header": False, "footer": False, "use_ocr": False,
+                "ignore_images": True, "write_images": False, "page_chunks": True,
+            }
+            markdown = pymupdf4llm.to_markdown(
+                document, **{key: value for key, value in options.items() if key in supported}
+            )
+            if isinstance(markdown, list):
+                return _clean_text("\n\n".join(
+                    f"<!-- evidence-page:{index + 1} -->\n{chunk.get('text', '')}"
+                    for index, chunk in enumerate(markdown)
+                ))
             return _clean_text(str(markdown or ""))
         except Exception:
             return ""

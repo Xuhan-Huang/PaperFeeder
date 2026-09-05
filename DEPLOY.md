@@ -348,6 +348,14 @@ Structured synthesis writes `artifacts/llm_usage_<run_id>.json` with provider-re
 request totals. Empty effort preserves the provider default; manual Actions runs can
 override it with the `reasoning_effort` workflow input.
 
+Main-body evidence selection defaults to `section_balanced`. Optional repository variables
+`PAPER_EVIDENCE_SELECTION_MODE`, `MAIN_BODY_FALLBACK_PAGES`, `SECTION_ROLE_WEIGHTS`
+(`35,40,15,10`), `SECTION_BASELINE_CHARS` (`600`), and `SECTION_RESIDUAL_CAP` (`0.5`)
+control it. Body-boundary uncertainty falls back to ten available PDF pages and is disclosed
+to synthesis; unknown section titles retain eligibility. Review the `selection` fields in
+`extraction_quality_*.json` alongside `llm_usage_*.json` before tuning budgets. Use
+`PAPER_EVIDENCE_SELECTION_MODE=head_tail` for rollback without changing durable state.
+
 ### 3. Rate Limiting
 
 ```yaml

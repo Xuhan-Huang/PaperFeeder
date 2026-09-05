@@ -140,6 +140,11 @@ pdf_download_retries: 2
 pdf_max_bytes: 25000000
 paper_evidence_chars: 18000
 synthesis_aggregate_chars: 180000
+paper_evidence_selection_mode: "head_tail"
+main_body_fallback_pages: 10
+section_role_weights: [35, 40, 15, 10]
+section_baseline_chars: 600
+section_residual_cap: 0.5
 extraction_quality_threshold: 70
 extraction_quality_min_chars_per_page: 200
 extraction_quality_max_empty_page_ratio: 0.5
