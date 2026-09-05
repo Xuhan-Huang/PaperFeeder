@@ -1,6 +1,6 @@
 # Related Work 裁剪占比：本地固定样本对比
 
-本次比较使用同一份缓存提取结果，只调整 Related Work 的预算策略，不调用 LLM。
+第一阶段比较使用同一份缓存提取结果，只调整 Related Work 的预算策略，不调用 LLM。
 基线为 `bee41be` 的章节均衡策略；对比对象是每篇合计最多 900 字符的 Related Work 策略。
 样本来自 run `33941229270` 的十篇论文，其中九篇有可用 PDF，一篇下载失败，不计入比例。
 
@@ -38,7 +38,24 @@ p09 的 Related Work 位于前 10 页兜底之外，所以前后都为零；这�
 
 900 是绝对字符上限，并不保证占实际输出的比例小于 5%；因为实际选中正文可能少于 18k。
 文章短到可以完整保留时，不额外裁掉 Related Work。特殊标题或层级不明确时可能漏识别，诊断不代表完整语义分类。
-Related Work 有助于判断新颖性，因此默认保留少量内容。腾出的预算重新分配给其他正文，不承诺调用费用按同等比例下降。
+Related Work 有助于判断新颖性，因此默认保留少量内容。第一阶段腾出的预算重新分配给其他正文，改善覆盖，但没有达到降低输入量的目标。第二阶段已改成下述不补回策略。
 
 本地原始证据与结果：`.trash/main-body-comparison/related-work-before.json`、
 `.trash/main-body-comparison/related-work-audit.json`、`pXX.source.json`、`pXX.new.md`。
+
+## 第二阶段：裁掉后不补回
+
+按用户希望降低调用成本的要求，先计算正常的章节分配，再将 Related Work 的合计分配削减到最多 900 字符，减少的空间不再补给其他章节。每个 Related Work 单元的新分配也不会超过它原先的分配。普通章节保持未降权时的分配，短正文仍完整保留。
+
+每篇 18k、总阈值 180k 继续作为上限。诊断增加 `related_work_budget_saved_chars`（释放的分配额度）和 `effective_content_limit`（原上限减去释放额度）。这些预算字段与实际文本长度不同，也不是 token 或费用统计。
+
+同一批九份缓存输入的实测：
+
+| 指标 | 第一阶段：补回 | 第二阶段：不补回 |
+| --- | ---: | ---: |
+| 正文选中字符合计 | 142,781 | 138,898 |
+| QCell 正文字符 | 15,411 | 13,596 |
+
+整批正文字符减少 **3,883（2.72%）**。不同分配会改变完整段落的取舍，个别论文实际字符略增；释放的预算数不能直接当作文本字符差值。此次未付费调用 LLM，尚无同批 provider token 和账单对比。额外摘要、signals、prompt 与模型输出仍计费，因此不能把 2.72% 宣称为最终费用降幅。
+
+第一阶段的固定对照和第二阶段结果分别保存于 `.trash/related-work-save-comparison/redistributed-baseline.json` 与 `.trash/related-work-save-comparison/result.json`。`pXX.new.md` 已更新为第二阶段结果。
