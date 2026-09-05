@@ -341,7 +341,12 @@ LLM_MODEL=anthropic/claude-opus-5
 max_papers: 3  # Only summarize top 3
 synthesis_aggregate_chars: 180000
 paper_evidence_chars: 24000
+synthesis_reasoning_effort: ""  # Optional: low|medium|high|xhigh|max
 ```
+
+Structured synthesis writes `artifacts/llm_usage_<run_id>.json` with provider-reported
+request totals. Empty effort preserves the provider default; manual Actions runs can
+override it with the `reasoning_effort` workflow input.
 
 ### 3. Rate Limiting
 

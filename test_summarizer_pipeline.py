@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from llm_client import LLMClient
+from llm_client import LLMClient, LLMResult, LLMUsage
 from main import update_semantic_memory_from_report
 from models import Paper, PaperSource
 from paper_extraction import EvidencePacket, ExtractionSettings
@@ -52,6 +52,20 @@ def valid_payload() -> dict:
     }
 
 
+def llm_result(text: str, *, prompt_tokens: int = 10, completion_tokens: int = 5) -> LLMResult:
+    return LLMResult(
+        text=text,
+        usage=LLMUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            usage_source="test",
+            available=True,
+        ),
+        finish_reason="stop",
+    )
+
+
 class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
     async def test_direct_mode_preserves_prompt_and_canonical_url(self) -> None:
         paper = make_paper()
@@ -65,13 +79,15 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
                 synthesis_streaming=True,
                 diagnostic_output_dir=directory,
             )
-            summarizer.client.achat_stream = AsyncMock(return_value=json.dumps(valid_payload()))
+            summarizer.client.achat_stream_with_usage = AsyncMock(
+                return_value=llm_result(json.dumps(valid_payload()))
+            )
             report = await summarizer.generate_report([paper], use_pdf_multimodal=False)
 
             self.assertEqual(summarizer.last_synthesis_mode, "direct")
             self.assertIn(f'href="{paper.url}"', report)
             self.assertNotIn("paper:p01", report)
-            messages = summarizer.client.achat_stream.await_args.args[0]
+            messages = summarizer.client.achat_stream_with_usage.await_args.args[0]
             self.assertEqual(messages[0]["content"], EDITORIAL_SYSTEM_PROMPT)
             self.assertIsInstance(messages[1]["content"], str)
             self.assertIn('<document id="p01"', messages[1]["content"])
@@ -102,12 +118,14 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
                 diagnostic_output_dir=directory,
             )
             summarizer._compact_packets = AsyncMock(return_value=[fact])
-            summarizer.client.achat_stream = AsyncMock(return_value=json.dumps(valid_payload()))
+            summarizer.client.achat_stream_with_usage = AsyncMock(
+                return_value=llm_result(json.dumps(valid_payload()))
+            )
             report = await summarizer.generate_report([paper], use_pdf_multimodal=False)
 
             self.assertEqual(summarizer.last_synthesis_mode, "adaptive")
             summarizer._compact_packets.assert_awaited_once()
-            messages = summarizer.client.achat_stream.await_args.args[0]
+            messages = summarizer.client.achat_stream_with_usage.await_args.args[0]
             self.assertIn('compacted="true"', messages[1]["content"])
             self.assertEqual(messages[0]["content"], EDITORIAL_SYSTEM_PROMPT)
             self.assertIn(paper.url, report)
@@ -174,7 +192,9 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
             synthesis_retries=1,
             synthesis_retry_base_delay_sec=0,
         )
-        summarizer.client.achat_stream = AsyncMock(side_effect=[TimeoutError("slow"), "ok"])
+        summarizer.client.achat_stream_with_usage = AsyncMock(
+            side_effect=[TimeoutError("slow"), llm_result("ok")]
+        )
         with patch("summarizer.asyncio.sleep", new=AsyncMock()) as sleep:
             result = await summarizer._call_with_retry(
                 [{"role": "user", "content": "test"}],
@@ -182,7 +202,10 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
                 purpose="test",
             )
         self.assertEqual(result, "ok")
-        self.assertEqual(summarizer.client.achat_stream.await_count, 2)
+        self.assertEqual(summarizer.client.achat_stream_with_usage.await_count, 2)
+        self.assertEqual(len(summarizer.usage_records), 2)
+        self.assertFalse(summarizer.usage_records[0]["usage"]["available"])
+        self.assertTrue(summarizer.usage_records[1]["usage"]["available"])
         sleep.assert_awaited_once()
 
     async def test_authentication_error_is_not_retried(self) -> None:
@@ -195,14 +218,16 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
             model="anthropic/claude-opus-5",
             synthesis_retries=2,
         )
-        summarizer.client.achat_stream = AsyncMock(side_effect=AuthenticationError("bad key"))
+        summarizer.client.achat_stream_with_usage = AsyncMock(
+            side_effect=AuthenticationError("bad key")
+        )
         with self.assertRaises(SynthesisError):
             await summarizer._call_with_retry(
                 [{"role": "user", "content": "test"}],
                 max_tokens=10,
                 purpose="test",
             )
-        self.assertEqual(summarizer.client.achat_stream.await_count, 1)
+        self.assertEqual(summarizer.client.achat_stream_with_usage.await_count, 1)
 
     def test_unknown_model_item_id_is_rejected(self) -> None:
         summarizer = PaperSummarizer(api_key="test", base_url="https://example.com/v1")
@@ -232,7 +257,9 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
                 extraction_settings=ExtractionSettings(enabled=False),
                 diagnostic_output_dir=directory,
             )
-            summarizer.client.achat_stream = AsyncMock(return_value=json.dumps(valid_payload()))
+            summarizer.client.achat_stream_with_usage = AsyncMock(
+                return_value=llm_result(json.dumps(valid_payload()))
+            )
             report = await summarizer.generate_report([paper], use_pdf_multimodal=False)
             artifacts = export_run_feedback_manifest(
                 [paper],
@@ -256,7 +283,9 @@ class StructuredSynthesisTests(unittest.IsolatedAsyncioTestCase):
                 extraction_settings=ExtractionSettings(enabled=False),
                 diagnostic_output_dir=directory,
             )
-            summarizer.client.achat_stream = AsyncMock(return_value=json.dumps(valid_payload()))
+            summarizer.client.achat_stream_with_usage = AsyncMock(
+                return_value=llm_result(json.dumps(valid_payload()))
+            )
             report = await summarizer.generate_report([paper], use_pdf_multimodal=False)
             store = SemanticMemoryStore(str(Path(directory) / "memory.json"), max_ids=20)
             store.load()

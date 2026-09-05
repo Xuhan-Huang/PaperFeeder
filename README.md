@@ -588,7 +588,9 @@ Or just add URLs (metadata auto-fetched):
 - In GitHub Actions, open `Daily Paper Digest` -> `Run workflow`.
 - `days_back` controls how many days of papers are fetched (`--days` in CLI).
 - `dry_run=true` generates preview artifact (`paper-report`) without sending email.
-- Feedback files are uploaded as `feedback-artifacts-<run_id>.zip` for each run.
+- `reasoning_effort` optionally sets `low`, `medium`, `high`, `xhigh`, or `max`; leave it empty to preserve the provider default.
+- Feedback and diagnostics, including `llm_usage_<run_id>.json`, are uploaded as `feedback-artifacts-<run_id>.zip` for each run.
+- Usage diagnostics contain provider-reported token counts and attempt metadata only; they exclude prompts, responses, paper content, credentials, and signed links.
 
 #### Troubleshooting
 

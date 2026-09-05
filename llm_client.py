@@ -8,9 +8,92 @@ from __future__ import annotations
 import base64
 import httpx
 import aiohttp
+from dataclasses import asdict, dataclass
 from openai import OpenAI, AsyncOpenAI
-from typing import Optional, Union, List
+from typing import Any, Optional, Union, List
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class LLMUsage:
+    """Normalized provider-reported token usage for one request."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    cached_tokens: int = 0
+    reasoning_tokens_reported: int = 0
+    usage_source: str = ""
+    available: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class LLMResult:
+    """Immutable text, usage, and completion metadata for one request."""
+
+    text: str
+    usage: LLMUsage
+    finish_reason: str = ""
+
+
+def _as_mapping(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return value
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        dumped = model_dump()
+        return dumped if isinstance(dumped, dict) else {}
+    try:
+        return {
+            key: field
+            for key, field in vars(value).items()
+            if not key.startswith("_")
+        }
+    except TypeError:
+        return {}
+
+
+def _nonnegative_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def normalize_usage(raw_usage: Any) -> LLMUsage:
+    """Normalize OpenAI-compatible and Anthropic usage without estimating tokens."""
+    raw = _as_mapping(raw_usage)
+    if not raw:
+        return LLMUsage()
+
+    prompt_details = _as_mapping(raw.get("prompt_tokens_details"))
+    completion_details = _as_mapping(raw.get("completion_tokens_details"))
+    prompt_tokens = _nonnegative_int(raw.get("prompt_tokens", raw.get("input_tokens")))
+    completion_tokens = _nonnegative_int(
+        raw.get("completion_tokens", raw.get("output_tokens"))
+    )
+    total_tokens = _nonnegative_int(raw.get("total_tokens"))
+    if not total_tokens:
+        total_tokens = prompt_tokens + completion_tokens
+
+    cached_tokens = _nonnegative_int(prompt_details.get("cached_tokens"))
+    if not cached_tokens:
+        cached_tokens = _nonnegative_int(raw.get("cache_read_input_tokens"))
+
+    return LLMUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        cached_tokens=cached_tokens,
+        reasoning_tokens_reported=_nonnegative_int(completion_details.get("reasoning_tokens")),
+        usage_source=str(raw.get("usage_source") or ""),
+        available=True,
+    )
 
 
 class LLMClient:
@@ -124,54 +207,140 @@ class LLMClient:
         messages: list[dict],
         max_tokens: int = 4000,
         temperature: float = 0.7,
+        reasoning_effort: str = "",
     ) -> str:
         """Async chat completion."""
+        result = await self.achat_with_usage(
+            messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort,
+        )
+        return result.text
+
+    async def achat_with_usage(
+        self,
+        messages: list[dict],
+        max_tokens: int = 4000,
+        temperature: float = 0.7,
+        reasoning_effort: str = "",
+    ) -> LLMResult:
+        """Async chat completion with provider-reported usage metadata."""
         if self.is_anthropic:
+            request: dict[str, Any] = {
+                "model": self.model,
+                "max_tokens": max_tokens,
+                "messages": messages,
+            }
+            if reasoning_effort:
+                request["output_config"] = {"effort": reasoning_effort}
             response = await self.async_client.messages.create(
-                model=self.model,
-                max_tokens=max_tokens,
-                messages=messages,
+                **request,
             )
-            return response.content[0].text
-        else:
-            response = await self.async_client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
+            return LLMResult(
+                text=self._anthropic_response_text(response),
+                usage=normalize_usage(getattr(response, "usage", None)),
+                finish_reason=str(getattr(response, "stop_reason", "") or ""),
             )
-            return response.choices[0].message.content
+
+        request = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if reasoning_effort:
+            request["reasoning_effort"] = reasoning_effort
+        response = await self.async_client.chat.completions.create(**request)
+        choice = response.choices[0]
+        return LLMResult(
+            text=choice.message.content or "",
+            usage=normalize_usage(getattr(response, "usage", None)),
+            finish_reason=str(getattr(choice, "finish_reason", "") or ""),
+        )
 
     async def achat_stream(
         self,
         messages: list[dict],
         max_tokens: int = 4000,
         temperature: float = 0.7,
+        reasoning_effort: str = "",
     ) -> str:
         """Stream a chat completion and return the accumulated text."""
-        if self.is_anthropic:
-            async with self.async_client.messages.stream(
-                model=self.model,
-                max_tokens=max_tokens,
-                messages=messages,
-            ) as stream:
-                return await stream.get_final_text()
-
-        stream = await self.async_client.chat.completions.create(
-            model=self.model,
-            messages=messages,
+        result = await self.achat_stream_with_usage(
+            messages,
             max_tokens=max_tokens,
             temperature=temperature,
-            stream=True,
+            reasoning_effort=reasoning_effort,
         )
+        return result.text
+
+    async def achat_stream_with_usage(
+        self,
+        messages: list[dict],
+        max_tokens: int = 4000,
+        temperature: float = 0.7,
+        reasoning_effort: str = "",
+    ) -> LLMResult:
+        """Stream a completion and return text plus final provider usage."""
+        if self.is_anthropic:
+            request: dict[str, Any] = {
+                "model": self.model,
+                "max_tokens": max_tokens,
+                "messages": messages,
+            }
+            if reasoning_effort:
+                request["output_config"] = {"effort": reasoning_effort}
+            async with self.async_client.messages.stream(
+                **request,
+            ) as stream:
+                parts = [text async for text in stream.text_stream]
+                response = await stream.get_final_message()
+                return LLMResult(
+                    text="".join(parts),
+                    usage=normalize_usage(getattr(response, "usage", None)),
+                    finish_reason=str(getattr(response, "stop_reason", "") or ""),
+                )
+
+        request = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if reasoning_effort:
+            request["reasoning_effort"] = reasoning_effort
+        stream = await self.async_client.chat.completions.create(**request)
         parts: list[str] = []
+        usage = LLMUsage()
+        finish_reason = ""
         async for chunk in stream:
+            chunk_usage = getattr(chunk, "usage", None)
+            if chunk_usage is not None:
+                usage = normalize_usage(chunk_usage)
             if not chunk.choices:
                 continue
-            content = chunk.choices[0].delta.content
+            choice = chunk.choices[0]
+            content = choice.delta.content
             if isinstance(content, str):
                 parts.append(content)
-        return "".join(parts)
+            if getattr(choice, "finish_reason", None):
+                finish_reason = str(choice.finish_reason)
+        return LLMResult(
+            text="".join(parts),
+            usage=usage,
+            finish_reason=finish_reason,
+        )
+
+    @staticmethod
+    def _anthropic_response_text(response: Any) -> str:
+        return "".join(
+            str(getattr(block, "text", ""))
+            for block in getattr(response, "content", [])
+            if getattr(block, "type", "text") == "text"
+        )
     
     async def achat_with_pdf(
         self,

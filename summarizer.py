@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from models import Paper
-from llm_client import LLMClient
+from llm_client import LLMClient, LLMResult, LLMUsage
 from paper_extraction import (
     EvidencePacket,
     ExtractionSettings,
@@ -82,6 +82,8 @@ class SynthesisValidationError(SynthesisError):
 
 class PaperSummarizer:
     """Generate paper summaries and insights using any LLM."""
+
+    SUPPORTED_REASONING_EFFORTS = {"low", "medium", "high", "xhigh", "max"}
     
     def __init__(
         self,
@@ -101,6 +103,7 @@ class PaperSummarizer:
         adaptive_compaction_concurrency: int = 3,
         adaptive_compaction_max_tokens: int = 4096,
         synthesis_max_output_tokens: int = 16384,
+        synthesis_reasoning_effort: str = "",
         blog_excerpt_chars: int = 1200,
         diagnostic_output_dir: str = "artifacts",
     ):
@@ -123,10 +126,20 @@ class PaperSummarizer:
         self.adaptive_compaction_concurrency = max(1, int(adaptive_compaction_concurrency))
         self.adaptive_compaction_max_tokens = max(128, int(adaptive_compaction_max_tokens))
         self.synthesis_max_output_tokens = max(512, int(synthesis_max_output_tokens))
+        self.synthesis_reasoning_effort = (synthesis_reasoning_effort or "").strip().lower()
+        if (
+            self.synthesis_reasoning_effort
+            and self.synthesis_reasoning_effort not in self.SUPPORTED_REASONING_EFFORTS
+        ):
+            supported = ", ".join(sorted(self.SUPPORTED_REASONING_EFFORTS))
+            raise ValueError(f"Unsupported synthesis reasoning effort; expected one of: {supported}")
         self.blog_excerpt_chars = max(100, int(blog_excerpt_chars))
         self.diagnostic_output_dir = diagnostic_output_dir
         self.last_synthesis_mode = "legacy" if self.synthesis_mode == "legacy" else "direct"
         self.last_extraction_report_path: Optional[Path] = None
+        self.last_usage_report_path: Optional[Path] = None
+        self.usage_records: list[dict[str, Any]] = []
+        self._usage_lock = asyncio.Lock()
     
     def _build_prompt(
         self, 
@@ -633,25 +646,55 @@ Return exactly this JSON shape:
         for attempt in range(1, attempts + 1):
             started = time.monotonic()
             content = ""
+            result: Optional[LLMResult] = None
             print(
                 f"   🤖 {purpose}: model={self.client.model} attempt={attempt}/{attempts} "
-                f"input_chars={input_chars} stream={self.synthesis_streaming}"
+                f"input_chars={input_chars} stream={self.synthesis_streaming} "
+                f"effort={self.synthesis_reasoning_effort or 'provider_default'}"
             )
             try:
                 if self.synthesis_streaming:
-                    content = await self.client.achat_stream(messages, max_tokens=max_tokens)
+                    result = await self.client.achat_stream_with_usage(
+                        messages,
+                        max_tokens=max_tokens,
+                        reasoning_effort=self.synthesis_reasoning_effort,
+                    )
                 else:
-                    content = await self.client.achat(messages, max_tokens=max_tokens)
+                    result = await self.client.achat_with_usage(
+                        messages,
+                        max_tokens=max_tokens,
+                        reasoning_effort=self.synthesis_reasoning_effort,
+                    )
+                content = result.text
                 if not (content or "").strip():
                     raise SynthesisValidationError("model returned empty content")
                 if validator is not None:
                     validator(content)
                 elapsed = time.monotonic() - started
-                print(f"   ✅ {purpose}: completed in {elapsed:.1f}s chars={len(content)}")
+                await self._record_usage_attempt(
+                    purpose=purpose,
+                    attempt=attempt,
+                    status="success",
+                    elapsed_seconds=elapsed,
+                    result=result,
+                )
+                usage_note = self._format_usage(result.usage)
+                print(
+                    f"   ✅ {purpose}: completed in {elapsed:.1f}s chars={len(content)} "
+                    f"{usage_note}"
+                )
                 return content
             except Exception as error:
                 elapsed = time.monotonic() - started
                 retryable = not self._is_non_retryable(error)
+                await self._record_usage_attempt(
+                    purpose=purpose,
+                    attempt=attempt,
+                    status="failed",
+                    elapsed_seconds=elapsed,
+                    result=result,
+                    error_type=type(error).__name__,
+                )
                 print(
                     f"   ⚠️ {purpose}: {type(error).__name__} after {elapsed:.1f}s "
                     f"retryable={retryable} response_chars={len(content)} "
@@ -663,6 +706,97 @@ Return exactly this JSON shape:
                 delay += random.uniform(0, min(0.5, self.synthesis_retry_base_delay_sec / 4))
                 await asyncio.sleep(delay)
         raise SynthesisError(f"{purpose} failed without a response")
+
+    @staticmethod
+    def _format_usage(usage: LLMUsage) -> str:
+        if not usage.available:
+            return "usage=unavailable"
+        return (
+            f"tokens(prompt={usage.prompt_tokens}, completion={usage.completion_tokens}, "
+            f"total={usage.total_tokens}, cached={usage.cached_tokens}, "
+            f"reasoning_reported={usage.reasoning_tokens_reported})"
+        )
+
+    async def _record_usage_attempt(
+        self,
+        *,
+        purpose: str,
+        attempt: int,
+        status: str,
+        elapsed_seconds: float,
+        result: Optional[LLMResult],
+        error_type: str = "",
+    ) -> None:
+        usage = result.usage if result is not None else LLMUsage()
+        record = {
+            "purpose": purpose,
+            "attempt": attempt,
+            "model": self.client.model,
+            "reasoning_effort": self.synthesis_reasoning_effort or "provider_default",
+            "status": status,
+            "error_type": error_type,
+            "elapsed_seconds": round(elapsed_seconds, 3),
+            "finish_reason": result.finish_reason if result is not None else "",
+            "usage": usage.to_dict(),
+        }
+        async with self._usage_lock:
+            self.usage_records.append(record)
+
+    async def _reset_usage_records(self) -> None:
+        async with self._usage_lock:
+            self.usage_records = []
+        self.last_usage_report_path = None
+
+    async def _write_usage_report(self, run_id: str) -> Optional[Path]:
+        async with self._usage_lock:
+            records = [dict(record) for record in self.usage_records]
+        if not records:
+            return None
+
+        usage_records = [record["usage"] for record in records]
+        totals = {
+            "requests": len(records),
+            "successful_requests": sum(record["status"] == "success" for record in records),
+            "usage_available_requests": sum(usage["available"] for usage in usage_records),
+            "prompt_tokens": sum(usage["prompt_tokens"] for usage in usage_records),
+            "completion_tokens": sum(usage["completion_tokens"] for usage in usage_records),
+            "total_tokens": sum(usage["total_tokens"] for usage in usage_records),
+            "cached_tokens": sum(usage["cached_tokens"] for usage in usage_records),
+            "reasoning_tokens_reported": sum(
+                usage["reasoning_tokens_reported"] for usage in usage_records
+            ),
+        }
+        payload = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "synthesis_mode": self.last_synthesis_mode,
+            "model": self.client.model,
+            "reasoning_effort": self.synthesis_reasoning_effort or "provider_default",
+            "totals": totals,
+            "attempts": records,
+        }
+        output_dir = Path(self.diagnostic_output_dir)
+        output_path = output_dir / f"llm_usage_{run_id}.json"
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except OSError as error:
+            print(f"   ⚠️ Could not write LLM usage artifact: {error}")
+            return None
+
+        self.last_usage_report_path = output_path
+        print(
+            "   📊 LLM usage total: "
+            f"requests={totals['requests']} available={totals['usage_available_requests']} "
+            f"prompt={totals['prompt_tokens']} completion={totals['completion_tokens']} "
+            f"total={totals['total_tokens']} cached={totals['cached_tokens']} "
+            f"reasoning_reported={totals['reasoning_tokens_reported']}"
+        )
+        print(f"   🧾 LLM usage artifact: {output_path}")
+        return output_path
 
     @staticmethod
     def _fact_fallback(packet: EvidencePacket, warning: str) -> dict[str, Any]:
@@ -965,6 +1099,7 @@ Return exactly this JSON shape:
         use_pdf_multimodal: bool,
         blog_posts: Optional[list[Paper]],
     ) -> str:
+        await self._reset_usage_records()
         actual_papers, actual_blogs = self._separate_content(papers, blog_posts)
         extraction_settings = replace(
             self.extraction_settings,
@@ -989,36 +1124,39 @@ Return exactly this JSON shape:
             f"mode={self.last_synthesis_mode}"
         )
 
-        if adaptive:
-            fact_records = await self._compact_packets(packets)
-            paper_documents = self._build_adaptive_documents(fact_records)
-        else:
-            paper_documents = self._build_direct_documents(packets)
-        blog_documents, blog_map = self._build_blog_documents(actual_blogs)
-        prompts = self._build_structured_prompt(
-            paper_documents=paper_documents,
-            blog_documents=blog_documents,
-            has_blogs=bool(actual_blogs),
-            synthesis_mode=self.last_synthesis_mode,
-        )
-        messages = [
-            {"role": "system", "content": prompts["system"]},
-            {"role": "user", "content": prompts["user"]},
-        ]
-        raw = await self._call_with_retry(
-            messages,
-            max_tokens=self.synthesis_max_output_tokens,
-            purpose="holistic digest synthesis",
-            validator=lambda value: self._validate_digest_payload(
-                self._parse_json_object(value), paper_map, blog_map
-            ),
-        )
-        payload = self._validate_digest_payload(self._parse_json_object(raw), paper_map, blog_map)
-        content = self._render_structured_content(payload, paper_map, blog_map)
-        report = self._wrap_html(content, actual_papers + actual_blogs, actual_blogs)
-        allowed_urls = {paper.url for paper in actual_papers + actual_blogs}
-        self._validate_rendered_report(report, allowed_urls)
-        return report
+        try:
+            if adaptive:
+                fact_records = await self._compact_packets(packets)
+                paper_documents = self._build_adaptive_documents(fact_records)
+            else:
+                paper_documents = self._build_direct_documents(packets)
+            blog_documents, blog_map = self._build_blog_documents(actual_blogs)
+            prompts = self._build_structured_prompt(
+                paper_documents=paper_documents,
+                blog_documents=blog_documents,
+                has_blogs=bool(actual_blogs),
+                synthesis_mode=self.last_synthesis_mode,
+            )
+            messages = [
+                {"role": "system", "content": prompts["system"]},
+                {"role": "user", "content": prompts["user"]},
+            ]
+            raw = await self._call_with_retry(
+                messages,
+                max_tokens=self.synthesis_max_output_tokens,
+                purpose="holistic digest synthesis",
+                validator=lambda value: self._validate_digest_payload(
+                    self._parse_json_object(value), paper_map, blog_map
+                ),
+            )
+            payload = self._validate_digest_payload(self._parse_json_object(raw), paper_map, blog_map)
+            content = self._render_structured_content(payload, paper_map, blog_map)
+            report = self._wrap_html(content, actual_papers + actual_blogs, actual_blogs)
+            allowed_urls = {paper.url for paper in actual_papers + actual_blogs}
+            self._validate_rendered_report(report, allowed_urls)
+            return report
+        finally:
+            await self._write_usage_report(run_id)
     
     async def generate_report(
         self, 

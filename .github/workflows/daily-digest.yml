@@ -21,6 +21,10 @@ on:
         required: false
         default: 'false'
         type: boolean
+      reasoning_effort:
+        description: 'Optional synthesis effort: low, medium, high, xhigh, or max'
+        required: false
+        default: ''
 
 jobs:
   run-digest:
@@ -117,6 +121,7 @@ jobs:
           ADAPTIVE_COMPACTION_CONCURRENCY: ${{ vars.ADAPTIVE_COMPACTION_CONCURRENCY }}
           ADAPTIVE_COMPACTION_MAX_TOKENS: ${{ vars.ADAPTIVE_COMPACTION_MAX_TOKENS }}
           SYNTHESIS_MAX_OUTPUT_TOKENS: ${{ vars.SYNTHESIS_MAX_OUTPUT_TOKENS }}
+          SYNTHESIS_REASONING_EFFORT: ${{ github.event.inputs.reasoning_effort || vars.SYNTHESIS_REASONING_EFFORT }}
           # Research enrichment
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           # 兼容旧配置
@@ -204,7 +209,7 @@ jobs:
         run: |
           echo "ZIP_NAME=" >> "$GITHUB_ENV"
           shopt -s nullglob
-          FILES=(artifacts/run_feedback_manifest_*.json artifacts/semantic_feedback_template_*.json artifacts/extraction_quality_*.json)
+          FILES=(artifacts/run_feedback_manifest_*.json artifacts/semantic_feedback_template_*.json artifacts/extraction_quality_*.json artifacts/llm_usage_*.json)
           if [ ${#FILES[@]} -eq 0 ]; then
             echo "No feedback files found to package."
             exit 0

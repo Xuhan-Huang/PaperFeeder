@@ -127,6 +127,7 @@ class Config:
     adaptive_compaction_concurrency: int = 3
     adaptive_compaction_max_tokens: int = 4096
     synthesis_max_output_tokens: int = 16384
+    synthesis_reasoning_effort: str = ""
     blog_excerpt_chars: int = 1200
     
     # Source enablement settings
@@ -240,6 +241,7 @@ class Config:
             "adaptive_compaction_concurrency": os.getenv("ADAPTIVE_COMPACTION_CONCURRENCY"),
             "adaptive_compaction_max_tokens": os.getenv("ADAPTIVE_COMPACTION_MAX_TOKENS"),
             "synthesis_max_output_tokens": os.getenv("SYNTHESIS_MAX_OUTPUT_TOKENS"),
+            "synthesis_reasoning_effort": os.getenv("SYNTHESIS_REASONING_EFFORT"),
             "blog_excerpt_chars": os.getenv("BLOG_EXCERPT_CHARS"),
             # Source enablement
             "papers_enabled": os.getenv("PAPERS_ENABLED"),
@@ -385,6 +387,7 @@ class Config:
             "adaptive_compaction_concurrency": self.adaptive_compaction_concurrency,
             "adaptive_compaction_max_tokens": self.adaptive_compaction_max_tokens,
             "synthesis_max_output_tokens": self.synthesis_max_output_tokens,
+            "synthesis_reasoning_effort": self.synthesis_reasoning_effort,
             "blog_excerpt_chars": self.blog_excerpt_chars,
             "papers_enabled": self.papers_enabled,
             "manual_source_enabled": self.manual_source_enabled,
