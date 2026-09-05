@@ -329,6 +329,12 @@ Or use a scheduler container like [ofelia](https://github.com/mcuadros/ofelia).
 
 ### 2. Cost Optimization
 
+The default paper count passed to synthesis is 8, with up to 18,000 evidence characters
+per paper. Coarse filtering still selects up to 20 candidates; enrichment and fine-ranking
+costs are not reduced by this limit. A manual `max_papers=10` workflow input allows a
+dry-run audit of the ninth/tenth ranked papers against Opus editorial choices. The optional
+`MAX_PAPERS` repository variable overrides the configured default on scheduled runs.
+
 ```bash
 # Use cheap model for filtering (called 2x per paper)
 LLM_FILTER_MODEL=gpt-4o-mini

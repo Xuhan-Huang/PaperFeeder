@@ -29,6 +29,10 @@ on:
         description: 'Optional paper selection: section_balanced or head_tail'
         required: false
         default: ''
+      max_papers:
+        description: 'Optional paper count override for this run (default: configured limit)'
+        required: false
+        default: ''
 
 jobs:
   run-digest:
@@ -110,6 +114,7 @@ jobs:
           LLM_FILTER_API_KEY: ${{ secrets.LLM_FILTER_API_KEY }}
           LLM_FILTER_BASE_URL: ${{ secrets.LLM_FILTER_BASE_URL }}
           LLM_FILTER_MODEL: ${{ secrets.LLM_FILTER_MODEL }}
+          MAX_PAPERS: ${{ github.event.inputs.max_papers || vars.MAX_PAPERS }}
           # Runner-local extraction and resilient holistic synthesis
           SYNTHESIS_MODE: ${{ vars.SYNTHESIS_MODE }}
           PAPER_EXTRACTION_MODE: ${{ vars.PAPER_EXTRACTION_MODE }}

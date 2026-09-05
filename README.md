@@ -587,6 +587,8 @@ Or just add URLs (metadata auto-fetched):
 
 - In GitHub Actions, open `Daily Paper Digest` -> `Run workflow`.
 - `days_back` controls how many days of papers are fetched (`--days` in CLI).
+- Scheduled synthesis receives at most 8 papers (`max_papers`), keeping the 18k per-paper evidence budget. Coarse filtering still selects up to 20 candidates for enrichment and fine ranking; blogs have separate limits.
+- Optional `max_papers` workflow input (or `MAX_PAPERS` repository variable) overrides this positive-integer limit for comparison runs; leave it empty to use configuration.
 - `dry_run=true` generates preview artifact (`paper-report`) without sending email.
 - `reasoning_effort` optionally sets `low`, `medium`, `high`, `xhigh`, or `max`; leave it empty to preserve the provider default.
 - Feedback and diagnostics, including `llm_usage_<run_id>.json`, are uploaded as `feedback-artifacts-<run_id>.zip` for each run.

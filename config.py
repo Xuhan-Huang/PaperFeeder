@@ -86,7 +86,7 @@ class Config:
     # Filtering settings
     llm_filter_enabled: bool = True   # Enable LLM-based filtering (recommended)
     llm_filter_threshold: int = 5     # Only use LLM filter if > N papers after keyword filter
-    max_papers: int = 20              # Max papers in final report
+    max_papers: int = 8
     
     # LLM Filter settings (use cheaper model for filtering)
     llm_filter_api_key: str = ""      # API key for filter LLM
@@ -186,6 +186,8 @@ class Config:
     feedback_resolution_run_cache_enabled: bool = True
     
     def __post_init__(self) -> None:
+        if type(self.max_papers) is not int or self.max_papers < 1:
+            raise ValueError("max_papers must be a positive integer")
         SelectionSettings(
             mode=self.paper_evidence_selection_mode,
             fallback_pages=self.main_body_fallback_pages,
@@ -212,6 +214,7 @@ class Config:
             "llm_filter_api_key": os.getenv("LLM_FILTER_API_KEY"),
             "llm_filter_base_url": os.getenv("LLM_FILTER_BASE_URL"),
             "llm_filter_model": os.getenv("LLM_FILTER_MODEL"),
+            "max_papers": os.getenv("MAX_PAPERS"),
             "resend_api_key": os.getenv("RESEND_API_KEY"),
             "email_to": os.getenv("EMAIL_TO"),
             "tavily_api_key": os.getenv("TAVILY_API_KEY"),
@@ -284,7 +287,7 @@ class Config:
         # Apply environment variable overrides only when a non-empty value is provided.
         for key, value in env_overrides.items():
             if value not in (None, ""):
-                if key in {"main_body_fallback_pages", "section_baseline_chars", "related_work_max_chars"}:
+                if key in {"main_body_fallback_pages", "section_baseline_chars", "related_work_max_chars", "max_papers"}:
                     config_data[key] = int(value)
                     continue
                 if key == "section_residual_cap":

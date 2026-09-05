@@ -125,7 +125,7 @@ research_interests: |
 # =============================================================================
 llm_filter_enabled: true     # Enable LLM-based filtering
 llm_filter_threshold: 6      # Use LLM filter if keyword-filtered papers > N
-max_papers: 10                # Maximum papers in final report (slightly higher for flexibility)
+max_papers: 8
 
 # =============================================================================
 # Runner-local paper extraction and holistic synthesis

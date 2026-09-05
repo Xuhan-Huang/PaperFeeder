@@ -18,6 +18,7 @@ class SynthesisConfigTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             config = Config.from_yaml("config.yaml")
         self.assertEqual(config.synthesis_mode, "structured")
+        self.assertEqual(config.max_papers, 8)
         self.assertEqual(config.paper_evidence_chars, 18000)
         self.assertEqual(config.synthesis_aggregate_chars, 180000)
         self.assertEqual(config.extraction_quality_threshold, 70)
@@ -40,6 +41,7 @@ class SynthesisConfigTests(unittest.TestCase):
                     "TEX_SOURCE_ENABLED": "true",
                     "EXTRACTION_QUALITY_MAX_UNREADABLE_RATIO": "0.05",
                     "PAPER_EXTRACTION_MODE": "",
+                    "MAX_PAPERS": "10",
                 },
                 clear=True,
             ):
@@ -48,6 +50,12 @@ class SynthesisConfigTests(unittest.TestCase):
         self.assertTrue(config.tex_source_enabled)
         self.assertEqual(config.extraction_quality_max_unreadable_ratio, 0.05)
         self.assertEqual(config.paper_extraction_mode, "markdown")
+        self.assertEqual(config.max_papers, 10)
+
+    def test_invalid_paper_count_is_rejected(self) -> None:
+        for value in (0, -1, 2.5, True):
+            with self.assertRaisesRegex(ValueError, "max_papers"):
+                Config(max_papers=value)
 
 
 class DegradedPipelineTests(unittest.IsolatedAsyncioTestCase):

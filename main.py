@@ -359,7 +359,7 @@ async def enrich_papers(papers: List[Paper], config: Config) -> List[Paper]:
 async def filter_papers_fine(papers: List[Paper], config: Config) -> List[Paper]:
     """
     Stage 5: LLM Fine Filter (Ranking) - 基于content + community signals精筛
-    从20篇中选出真正值得深度阅读的Top 3
+    从候选论文中选出不超过配置上限的论文。
     """
     print("\n--- Stage 5: LLM Fine Filter (Ranking with Community Signals) ---")
     
@@ -383,7 +383,7 @@ async def filter_papers_fine(papers: List[Paper], config: Config) -> List[Paper]
     # Fine filtering: 包含community signals
     final_papers = await llm_filter.filter(
         papers,
-        max_papers=config.max_papers,  # 精筛得到最终的Top 3
+        max_papers=config.max_papers,
         include_community_signals=True  # 关键: 使用community signals
     )
     print(f"   ✅ LLM Fine Filter: Selected {len(final_papers)} papers for final report")
