@@ -599,6 +599,12 @@ identifies body sections, gives each substantive section up to 600 characters of
 coverage (budget permitting), and allocates remaining space with soft role preferences.
 Unfamiliar headings remain eligible; uncertain roles use capped length-based allocation.
 The initial residual cap is 50%, relaxed when other sections no longer need space.
+For oversized bodies, recognized Related Work (including confidently identified numbered
+or nested subsections) shares a separate 900-character total cap, including baseline
+allocations and selection markers. This prevents multiple prior-work subsections from
+each consuming a full baseline. Unknown headings outside that scope retain their normal
+baseline, and combined Related Work/Method headings are not automatically capped.
+Short bodies that fit are kept whole. Set `RELATED_WORK_MAX_CHARS` to tune this cap.
 References and appendices are excluded when confidently identified. Otherwise the first
 10 extracted pages are used, with explicit warnings about missing later evidence.
 The PDF extraction cap remains 15 pages and the per-paper content ceiling remains 18,000

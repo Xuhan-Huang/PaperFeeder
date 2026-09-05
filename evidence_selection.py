@@ -26,6 +26,7 @@ class SelectionSettings:
     role_weights: tuple[float, ...] = (35, 40, 15, 10)
     baseline_chars: int = 600
     residual_cap: float = 0.5
+    related_work_max_chars: int = 900
 
     def __post_init__(self) -> None:
         if self.mode not in {"section_balanced", "head_tail"}:
@@ -41,6 +42,8 @@ class SelectionSettings:
             raise ValueError("section_role_weights requires four finite nonnegative weights with positive sum")
         if type(self.residual_cap) not in (int, float) or not math.isfinite(self.residual_cap) or not 0 < self.residual_cap <= 1:
             raise ValueError("section_residual_cap must be in (0, 1]")
+        if type(self.related_work_max_chars) is not int or self.related_work_max_chars < 0:
+            raise ValueError("related_work_max_chars must be a nonnegative integer")
 
 
 @dataclass
@@ -53,6 +56,7 @@ class Section:
     role: str = "unknown"
     confidence: str = "low"
     reason: str = "unclassified"
+    related_work: bool = False
 
     @property
     def content(self) -> str:
@@ -68,7 +72,7 @@ def heading(line: str) -> Optional[tuple[str, int]]:
     value = (markdown.group(2) if markdown else bold.group(1) if bold else stripped).strip()
     value = value.replace("**", "").strip()
     for word in ("REFERENCES", "BIBLIOGRAPHY", "ABSTRACT", "INTRODUCTION", "CONCLUSION",
-                 "CONCLUSIONS", "APPENDIX", "APPENDICES", "LIMITATIONS", "METHOD", "RESULTS"):
+                 "CONCLUSIONS", "APPENDIX", "APPENDICES", "LIMITATIONS", "METHOD", "RESULTS", "RELATED", "WORK"):
         value = re.sub(rf"\b{word[0]}\s+{word[1:]}\b", word, value)
     numbered = re.match(r"^(\d+(?:\.\d+)*)[.)]?\s+([A-Z][^\n]+)$", value)
     if not numbered and (markdown or bold):
@@ -76,7 +80,7 @@ def heading(line: str) -> Optional[tuple[str, int]]:
     title = numbered.group(2) if numbered else value
     level = len(markdown.group(1)) if markdown else numbered.group(1).count(".") + 1 if numbered else 1
     plain_section = re.fullmatch(
-        r"abstract|introduction|conclusions?|discussion|limitations?|references|bibliography|"
+        r"abstract|introduction|conclusions?|discussion|limitations?|references|bibliography|related works?|prior work|literature review|"
         r"acknowledg(?:e)?ments?|appendi(?:x|ces)(?:\s+[A-Z])?|supplementary material",
         title, re.I,
     )
@@ -103,6 +107,30 @@ def classify(section: Section) -> None:
         inferred = [role for role, pattern in cues.items() if re.search(pattern, opening, re.I | re.S)]
         if len(inferred) == 1:
             section.role, section.confidence, section.reason = inferred[0], "medium", "opening_cue"
+
+
+def mark_related_work(sections: list[Section]) -> None:
+    parent_number = None
+    parent_level = None
+    for section in sections:
+        title = re.sub(r"\s+", "", section.title).lower()
+        raw_heading = re.sub(r"^#{1,6}\s*", "", section.lines[0]).replace("**", "").strip()
+        match = re.match(r"^(\d+(?:\.\d+)*)[.)]?\s+[A-Z]", raw_heading)
+        number = match.group(1) if match else None
+        section.related_work = False
+        if title in {"relatedwork", "relatedworks", "priorwork", "literaturereview"}:
+            section.related_work = True
+            parent_number, parent_level = number, section.level
+        elif parent_level is not None:
+            if number and parent_number:
+                if number.startswith(parent_number + "."):
+                    section.related_work = True
+                elif int(number.split(".")[0]) > int(parent_number.split(".")[0]):
+                    parent_number, parent_level = None, None
+            elif section.level > parent_level:
+                section.related_work = True
+            else:
+                parent_number, parent_level = None, None
 
 
 def segment(content: str) -> tuple[list[Section], bool]:
@@ -138,6 +166,7 @@ def segment(content: str) -> tuple[list[Section], bool]:
     if current.content:
         classify(current)
         sections.append(current)
+    mark_related_work(sections)
     return sections, page is not None
 
 
@@ -262,6 +291,19 @@ def select_evidence(content: str, limit: int, settings: SelectionSettings, *,
     oversized = sum(lengths) + max(0, len(body) - 1) * 2 > limit
     allocation_lengths = [length + len(f"[section s{index + 1:02d}]\n") if oversized else length
                           for index, length in enumerate(lengths)]
+    related_indices = [index for index, section in enumerate(body) if section.related_work]
+    if oversized and related_indices:
+        related_lengths = [allocation_lengths[index] for index in related_indices]
+        related_baseline = allocate(
+            [min(length, 200, settings.baseline_chars) for length in related_lengths],
+            settings.related_work_max_chars, [1.0] * len(related_indices),
+        )
+        related_demands = [length - initial for length, initial in zip(related_lengths, related_baseline)]
+        related_extra = allocate(related_demands, settings.related_work_max_chars - sum(related_baseline),
+                                 [math.sqrt(demand) for demand in related_demands])
+        related_limits = [initial + extra for initial, extra in zip(related_baseline, related_extra)]
+        for index, related_limit in zip(related_indices, related_limits):
+            allocation_lengths[index] = related_limit
     budget = max(0, limit - max(0, len(body) - 1) * 2)
     baseline = allocate([min(length, settings.baseline_chars) for length in allocation_lengths], budget, [1.0] * len(body))
     demands = [length - initial for length, initial in zip(allocation_lengths, baseline)]
@@ -285,7 +327,8 @@ def select_evidence(content: str, limit: int, settings: SelectionSettings, *,
             "section_id": f"s{index + 1:02d}", "start_line": section.start_line,
             "pages": section.pages, "role": section.role,
             "role_confidence": section.confidence, "role_reason": section.reason,
-            "allocation_policy": "role_weighted" if section.confidence == "high" else "capped_length",
+            "related_work": section.related_work,
+            "allocation_policy": "related_work_cap" if oversized and section.related_work else "role_weighted" if section.confidence == "high" else "capped_length",
             "original_chars": len(observed.content), "retained_chars": len(selected),
             "baseline_chars": initial, "residual_chars": extra, "retained_blocks": blocks,
             "status": "omitted" if not selected else "partial" if changed else "full",
@@ -297,6 +340,7 @@ def select_evidence(content: str, limit: int, settings: SelectionSettings, *,
         coverage.append({
             "section_id": f"s{len(coverage) + 1:02d}", "start_line": section.start_line,
             "pages": section.pages, "role": section.role, "role_confidence": section.confidence,
+            "related_work": section.related_work,
             "role_reason": section.reason, "allocation_policy": "outside_fallback_pages",
             "original_chars": len(section.content), "retained_chars": 0,
             "baseline_chars": 0, "residual_chars": 0, "retained_blocks": 0, "status": "omitted",
@@ -315,6 +359,9 @@ def select_evidence(content: str, limit: int, settings: SelectionSettings, *,
         "candidate_chars": sum(lengths), "selected_chars": len(selected_content),
         "baseline_target": settings.baseline_chars, "residual_cap": settings.residual_cap,
         "role_weights": list(settings.role_weights), "section_count": len(coverage),
+        "related_work_max_chars": settings.related_work_max_chars,
+        "related_work_retained_chars": sum(entry["retained_chars"] for entry in coverage if entry["related_work"]),
+        "related_work_candidate_chars": sum(len(section.content) for section in body if section.related_work),
         "affected_section_count": len(affected), "sections": coverage[:80],
         "diagnostics_sections_omitted": max(0, len(coverage) - 80), "warnings": notes,
     }

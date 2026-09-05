@@ -145,6 +145,7 @@ main_body_fallback_pages: 10
 section_role_weights: [35, 40, 15, 10]
 section_baseline_chars: 600
 section_residual_cap: 0.5
+related_work_max_chars: 900
 extraction_quality_threshold: 70
 extraction_quality_min_chars_per_page: 200
 extraction_quality_max_empty_page_ratio: 0.5

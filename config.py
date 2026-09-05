@@ -111,6 +111,7 @@ class Config:
     section_role_weights: list[float] = field(default_factory=lambda: [35, 40, 15, 10])
     section_baseline_chars: int = 600
     section_residual_cap: float = 0.5
+    related_work_max_chars: int = 900
     extraction_quality_threshold: int = 70
     extraction_quality_min_chars_per_page: int = 200
     extraction_quality_max_empty_page_ratio: float = 0.5
@@ -191,6 +192,7 @@ class Config:
             role_weights=tuple(self.section_role_weights),
             baseline_chars=self.section_baseline_chars,
             residual_cap=self.section_residual_cap,
+            related_work_max_chars=self.related_work_max_chars,
         )
 
     @classmethod
@@ -233,6 +235,7 @@ class Config:
             "section_role_weights": os.getenv("SECTION_ROLE_WEIGHTS"),
             "section_baseline_chars": os.getenv("SECTION_BASELINE_CHARS"),
             "section_residual_cap": os.getenv("SECTION_RESIDUAL_CAP"),
+            "related_work_max_chars": os.getenv("RELATED_WORK_MAX_CHARS"),
             "paper_extraction_mode": os.getenv("PAPER_EXTRACTION_MODE"),
             "pdf_download_timeout_sec": os.getenv("PDF_DOWNLOAD_TIMEOUT_SEC"),
             "pdf_download_retries": os.getenv("PDF_DOWNLOAD_RETRIES"),
@@ -281,7 +284,7 @@ class Config:
         # Apply environment variable overrides only when a non-empty value is provided.
         for key, value in env_overrides.items():
             if value not in (None, ""):
-                if key in {"main_body_fallback_pages", "section_baseline_chars"}:
+                if key in {"main_body_fallback_pages", "section_baseline_chars", "related_work_max_chars"}:
                     config_data[key] = int(value)
                     continue
                 if key == "section_residual_cap":
@@ -399,6 +402,7 @@ class Config:
             "section_role_weights": self.section_role_weights,
             "section_baseline_chars": self.section_baseline_chars,
             "section_residual_cap": self.section_residual_cap,
+            "related_work_max_chars": self.related_work_max_chars,
             "extraction_quality_threshold": self.extraction_quality_threshold,
             "extraction_quality_min_chars_per_page": self.extraction_quality_min_chars_per_page,
             "extraction_quality_max_empty_page_ratio": self.extraction_quality_max_empty_page_ratio,

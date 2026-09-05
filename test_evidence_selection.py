@@ -7,7 +7,7 @@ from dataclasses import replace
 from unittest.mock import patch
 
 from config import Config
-from evidence_selection import SelectionSettings, allocate, heading, select_evidence, selection_notes
+from evidence_selection import SelectionSettings, allocate, heading, segment, select_evidence, selection_notes
 from paper_extraction import EvidencePacket, ExtractionSettings, PaperContentExtractor
 from summarizer import PaperSummarizer
 
@@ -36,6 +36,52 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(all(entry["baseline_chars"] >= 600 and entry["residual_chars"] > 0 for entry in unknown))
         self.assertEqual(report["boundary_confidence"], "high")
         self.assertEqual(select_evidence(content, 6000, SelectionSettings())[0], output)
+
+    def test_related_work_subsections_share_one_cap(self):
+        text = "### **2 Related Work**\n\nPrior context.\n\n1 A footnote about the dataset.\n\n"
+        text += "\n\n".join(section(f"2.{index} Prior System {index}", f"prior{index}") for index in range(1, 4))
+        text += "\n\n" + section("3 SpiralNet", "new_method", 35)
+        text += "\n\n" + section("4 Results", "results", 25)
+        output, report = select_evidence(text, 18000, SelectionSettings())
+        related = [entry for entry in report["sections"] if entry["related_work"]]
+        self.assertEqual(len(related), 4)
+        self.assertLessEqual(sum(entry["retained_chars"] for entry in related), 900)
+        self.assertLessEqual(sum(entry["baseline_chars"] + entry["residual_chars"] for entry in related), 900)
+        self.assertTrue(all(entry["retained_chars"] > 0 for entry in related))
+        method = next(entry for entry in report["sections"] if entry["role"] == "unknown" and entry["original_chars"] > 10000 and not entry["related_work"])
+        self.assertGreaterEqual(method["baseline_chars"], 600)
+        self.assertGreater(method["residual_chars"], 0)
+        self.assertIn("new_method", output)
+        self.assertLessEqual(len(output), 18000)
+
+    def test_related_work_scope_stops_at_next_markdown_peer(self):
+        text = "# Related Work\n\nEarlier ideas.\n\n## Old Approaches\n\nPrior details.\n\n# SpiralNet\n\nNew proposal."
+        sections, _ = segment(text)
+        self.assertEqual([entry.related_work for entry in sections], [True, True, False])
+
+    def test_short_body_keeps_related_work_in_full(self):
+        text = "# Related Work\n\nPrior context worth keeping.\n\n# Method\n\nOur method."
+        output, report = select_evidence(text, 18000, SelectionSettings(related_work_max_chars=5))
+        self.assertEqual(output, text)
+        self.assertEqual(report["affected_section_count"], 0)
+
+    def test_related_cap_zero_omits_only_related_work(self):
+        text = section("Related Work", "prior") + "\n\n" + section("SpiralNet", "new", 40)
+        output, report = select_evidence(text, 4000, SelectionSettings(related_work_max_chars=0))
+        self.assertNotIn("prior-", output)
+        self.assertIn("new-", output)
+        self.assertEqual(report["related_work_retained_chars"], 0)
+        self.assertEqual(report["sections"][0]["status"], "omitted")
+        for value in (-1, 2.5, True):
+            with self.assertRaises(ValueError):
+                SelectionSettings(related_work_max_chars=value)
+
+    def test_related_aliases_and_small_caps_do_not_match_combined_method(self):
+        for title in ("2 R ELATED W ORK", "Related Work", "**Literature Review**", "## Prior Work"):
+            sections, _ = segment(title + "\n\nEarlier research.")
+            self.assertTrue(sections[0].related_work)
+        sections, _ = segment("## Related Work and Method\n\nIncludes our contribution.")
+        self.assertFalse(sections[0].related_work)
 
     def test_short_body_and_post_reference_limitations(self):
         body = "# 1 SpiralNet\n\nA useful result; see Appendix A for details."

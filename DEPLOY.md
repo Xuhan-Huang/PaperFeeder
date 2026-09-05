@@ -356,6 +356,12 @@ to synthesis; unknown section titles retain eligibility. Review the `selection` 
 `extraction_quality_*.json` alongside `llm_usage_*.json` before tuning budgets. Use
 `PAPER_EVIDENCE_SELECTION_MODE=head_tail` for rollback without changing durable state.
 
+`RELATED_WORK_MAX_CHARS` defaults to `900`: oversized bodies share this cap across
+recognized Related Work and its confirmed subsections. It applies before baseline/residual
+allocation, leaving freed capacity for other sections. Short bodies that fit are unchanged.
+Selection diagnostics expose `related_work_candidate_chars` and `related_work_retained_chars`;
+these are character counts for the selected candidate region, not provider token usage.
+
 ### 3. Rate Limiting
 
 ```yaml

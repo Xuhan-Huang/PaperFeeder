@@ -66,12 +66,14 @@ class ExtractionSettings:
     section_role_weights: tuple[float, ...] = (35, 40, 15, 10)
     section_baseline_chars: int = 600
     section_residual_cap: float = 0.5
+    related_work_max_chars: int = 900
 
     def selection_settings(self) -> SelectionSettings:
         return SelectionSettings(
             mode=self.selection_mode, fallback_pages=self.main_body_fallback_pages,
             role_weights=tuple(self.section_role_weights), baseline_chars=self.section_baseline_chars,
             residual_cap=self.section_residual_cap,
+            related_work_max_chars=self.related_work_max_chars,
         )
 
 

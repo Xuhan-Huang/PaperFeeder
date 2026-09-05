@@ -444,6 +444,7 @@ async def summarize_papers(papers: list[Paper], config: Config, priority_blogs: 
         section_role_weights=tuple(getattr(config, "section_role_weights", [35, 40, 15, 10])),
         section_baseline_chars=getattr(config, "section_baseline_chars", 600),
         section_residual_cap=getattr(config, "section_residual_cap", 0.5),
+        related_work_max_chars=getattr(config, "related_work_max_chars", 900),
         quality_threshold=getattr(config, "extraction_quality_threshold", 70),
         quality_min_chars_per_page=getattr(config, "extraction_quality_min_chars_per_page", 200),
         quality_max_empty_page_ratio=getattr(config, "extraction_quality_max_empty_page_ratio", 0.5),
