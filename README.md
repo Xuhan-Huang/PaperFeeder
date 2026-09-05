@@ -602,14 +602,9 @@ The initial residual cap is 50%, relaxed when other sections no longer need spac
 For oversized bodies, recognized Related Work (including confidently identified numbered
 or nested subsections) shares a separate 900-character total cap, including baseline
 allocations and selection markers. This prevents multiple prior-work subsections from
-each consuming a full baseline. The cap is applied after ordinary section allocation;
-removed capacity is not refilled by other sections, reducing the effective content ceiling.
-Unknown headings outside that scope retain their normal
+each consuming a full baseline. Unknown headings outside that scope retain their normal
 baseline, and combined Related Work/Method headings are not automatically capped.
 Short bodies that fit are kept whole. Set `RELATED_WORK_MAX_CHARS` to tune this cap.
-Diagnostics record `related_work_budget_saved_chars` and `effective_content_limit`;
-these are character budgets, not measured token or dollar savings. The configured 18k/180k
-ceilings remain upper bounds, not targets the selector must fill.
 References and appendices are excluded when confidently identified. Otherwise the first
 10 extracted pages are used, with explicit warnings about missing later evidence.
 The PDF extraction cap remains 15 pages and the per-paper content ceiling remains 18,000

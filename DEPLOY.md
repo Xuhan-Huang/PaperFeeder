@@ -357,12 +357,10 @@ to synthesis; unknown section titles retain eligibility. Review the `selection` 
 `PAPER_EVIDENCE_SELECTION_MODE=head_tail` for rollback without changing durable state.
 
 `RELATED_WORK_MAX_CHARS` defaults to `900`: oversized bodies share this cap across
-recognized Related Work and its confirmed subsections. It applies after baseline/residual
-allocation, and removed capacity is not given to other sections. Short bodies that fit are unchanged.
+recognized Related Work and its confirmed subsections. It applies before baseline/residual
+allocation, leaving freed capacity for other sections. Short bodies that fit are unchanged.
 Selection diagnostics expose `related_work_candidate_chars` and `related_work_retained_chars`;
 these are character counts for the selected candidate region, not provider token usage.
-`related_work_budget_saved_chars` records released allocation and `effective_content_limit`
-records the reduced per-paper ceiling. Actual rendered length can differ due to block sampling.
 
 ### 3. Rate Limiting
 

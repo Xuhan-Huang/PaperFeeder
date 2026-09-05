@@ -1,5 +1,7 @@
 # Related Work 裁剪占比：本地固定样本对比
 
+**当前策略：重新分配。** 用户在比较约 2.72% 的正文字符节省后，决定优先改善正文覆盖。因此恢复第一阶段策略：Related Work 合计最多 900 字符，腾出的额度分给其他正文；每篇 18k、总阈值 180k 保持不变。下面第二阶段仅作为历史实验记录。
+
 第一阶段比较使用同一份缓存提取结果，只调整 Related Work 的预算策略，不调用 LLM。
 基线为 `bee41be` 的章节均衡策略；对比对象是每篇合计最多 900 字符的 Related Work 策略。
 样本来自 run `33941229270` 的十篇论文，其中九篇有可用 PDF，一篇下载失败，不计入比例。
@@ -38,12 +40,12 @@ p09 的 Related Work 位于前 10 页兜底之外，所以前后都为零；这�
 
 900 是绝对字符上限，并不保证占实际输出的比例小于 5%；因为实际选中正文可能少于 18k。
 文章短到可以完整保留时，不额外裁掉 Related Work。特殊标题或层级不明确时可能漏识别，诊断不代表完整语义分类。
-Related Work 有助于判断新颖性，因此默认保留少量内容。第一阶段腾出的预算重新分配给其他正文，改善覆盖，但没有达到降低输入量的目标。第二阶段已改成下述不补回策略。
+Related Work 有助于判断新颖性，因此默认保留少量内容。第一阶段腾出的预算重新分配给其他正文，改善覆盖。曾在第二阶段测试不补回策略，现根据用户选择恢复第一阶段的分配方式。
 
 本地原始证据与结果：`.trash/main-body-comparison/related-work-before.json`、
 `.trash/main-body-comparison/related-work-audit.json`、`pXX.source.json`、`pXX.new.md`。
 
-## 第二阶段：裁掉后不补回
+## 第二阶段：裁掉后不补回（历史实验，已停用）
 
 按用户希望降低调用成本的要求，先计算正常的章节分配，再将 Related Work 的合计分配削减到最多 900 字符，减少的空间不再补给其他章节。每个 Related Work 单元的新分配也不会超过它原先的分配。普通章节保持未降权时的分配，短正文仍完整保留。
 
@@ -58,4 +60,4 @@ Related Work 有助于判断新颖性，因此默认保留少量内容。第一�
 
 整批正文字符减少 **3,883（2.72%）**。不同分配会改变完整段落的取舍，个别论文实际字符略增；释放的预算数不能直接当作文本字符差值。此次未付费调用 LLM，尚无同批 provider token 和账单对比。额外摘要、signals、prompt 与模型输出仍计费，因此不能把 2.72% 宣称为最终费用降幅。
 
-第一阶段的固定对照和第二阶段结果分别保存于 `.trash/related-work-save-comparison/redistributed-baseline.json` 与 `.trash/related-work-save-comparison/result.json`。`pXX.new.md` 已更新为第二阶段结果。
+第一阶段的固定对照和第二阶段结果分别保存于 `.trash/related-work-save-comparison/redistributed-baseline.json` 与 `.trash/related-work-save-comparison/result.json`。`pXX.new.md` 已恢复为当前重新分配策略的结果。诊断中的 `related_work_budget_policy=redistribute` 明确标识当前行为。

@@ -292,6 +292,18 @@ def select_evidence(content: str, limit: int, settings: SelectionSettings, *,
     allocation_lengths = [length + len(f"[section s{index + 1:02d}]\n") if oversized else length
                           for index, length in enumerate(lengths)]
     related_indices = [index for index, section in enumerate(body) if section.related_work]
+    if oversized and related_indices:
+        related_lengths = [allocation_lengths[index] for index in related_indices]
+        related_baseline = allocate(
+            [min(length, 200, settings.baseline_chars) for length in related_lengths],
+            settings.related_work_max_chars, [1.0] * len(related_indices),
+        )
+        related_demands = [length - initial for length, initial in zip(related_lengths, related_baseline)]
+        related_extra = allocate(related_demands, settings.related_work_max_chars - sum(related_baseline),
+                                 [math.sqrt(demand) for demand in related_demands])
+        related_limits = [initial + extra for initial, extra in zip(related_baseline, related_extra)]
+        for index, related_limit in zip(related_indices, related_limits):
+            allocation_lengths[index] = related_limit
     budget = max(0, limit - max(0, len(body) - 1) * 2)
     baseline = allocate([min(length, settings.baseline_chars) for length in allocation_lengths], budget, [1.0] * len(body))
     demands = [length - initial for length, initial in zip(allocation_lengths, baseline)]
@@ -301,21 +313,6 @@ def select_evidence(content: str, limit: int, settings: SelectionSettings, *,
         preference = settings.role_weights[ROLES.index(section.role)] / role_total * 4 if section.confidence == "high" else 1.0
         weights.append(math.sqrt(demand) * preference)
     residual = allocate(demands, budget - sum(baseline), weights, settings.residual_cap)
-    original_allocations = [initial + extra for initial, extra in zip(baseline, residual)]
-    if oversized and related_indices:
-        related_lengths = [original_allocations[index] for index in related_indices]
-        related_baseline = allocate(
-            [min(length, 200, settings.baseline_chars) for length in related_lengths],
-            settings.related_work_max_chars, [1.0] * len(related_indices),
-        )
-        related_demands = [length - initial for length, initial in zip(related_lengths, related_baseline)]
-        related_extra = allocate(related_demands, settings.related_work_max_chars - sum(related_baseline),
-                                 [math.sqrt(demand) for demand in related_demands])
-        for index, initial, extra in zip(related_indices, related_baseline, related_extra):
-            related_limit = initial + extra
-            baseline[index] = min(baseline[index], related_limit)
-            residual[index] = related_limit - baseline[index]
-    saved_budget = sum(original_allocations) - sum(baseline) - sum(residual)
     output = []
     coverage = []
     for index, (section, initial, extra) in enumerate(zip(body, baseline, residual)):
@@ -334,7 +331,6 @@ def select_evidence(content: str, limit: int, settings: SelectionSettings, *,
             "allocation_policy": "related_work_cap" if oversized and section.related_work else "role_weighted" if section.confidence == "high" else "capped_length",
             "original_chars": len(observed.content), "retained_chars": len(selected),
             "baseline_chars": initial, "residual_chars": extra, "retained_blocks": blocks,
-            "allocation_before_related_cap": original_allocations[index],
             "status": "omitted" if not selected else "partial" if changed else "full",
         })
     included_lines = {section.start_line for section in body}
@@ -364,9 +360,7 @@ def select_evidence(content: str, limit: int, settings: SelectionSettings, *,
         "baseline_target": settings.baseline_chars, "residual_cap": settings.residual_cap,
         "role_weights": list(settings.role_weights), "section_count": len(coverage),
         "related_work_max_chars": settings.related_work_max_chars,
-        "related_work_budget_policy": "save_without_refill",
-        "related_work_budget_saved_chars": saved_budget,
-        "effective_content_limit": max(0, limit - saved_budget),
+        "related_work_budget_policy": "redistribute",
         "related_work_retained_chars": sum(entry["retained_chars"] for entry in coverage if entry["related_work"]),
         "related_work_candidate_chars": sum(len(section.content) for section in body if section.related_work),
         "affected_section_count": len(affected), "sections": coverage[:80],

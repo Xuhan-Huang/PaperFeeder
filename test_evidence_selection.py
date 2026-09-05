@@ -59,28 +59,20 @@ class SelectionTests(unittest.TestCase):
         sections, _ = segment(text)
         self.assertEqual([entry.related_work for entry in sections], [True, True, False])
 
-    def test_related_work_savings_are_not_refilled(self):
+    def test_related_work_capacity_is_reassigned_to_other_sections(self):
         text = section("1 Related Work", "prior", 25) + "\n\n" + section("2 Method", "method", 25)
         text += "\n\n" + section("3 Results", "results", 25)
-        uncapped, before = select_evidence(text, 18000, SelectionSettings(related_work_max_chars=18000))
-        selected, after = select_evidence(text, 18000, SelectionSettings())
-        self.assertGreater(after["related_work_budget_saved_chars"], 0)
-        self.assertLess(len(selected), len(uncapped))
-        self.assertLessEqual(len(selected), after["effective_content_limit"])
-        for original, current in zip(before["sections"], after["sections"]):
-            if not current["related_work"]:
-                self.assertEqual(original["baseline_chars"], current["baseline_chars"])
-                self.assertEqual(original["residual_chars"], current["residual_chars"])
-                self.assertEqual(original["retained_chars"], current["retained_chars"])
-        self.assertEqual(after["related_work_budget_policy"], "save_without_refill")
-
-    def test_related_cap_does_not_enlarge_small_existing_allocations(self):
-        text = section("1 Related Work", "prior", 1) + "\n\n" + section("2 Method", "method", 40)
-        _, before = select_evidence(text, 900, SelectionSettings(related_work_max_chars=18000))
-        _, after = select_evidence(text, 900, SelectionSettings(related_work_max_chars=900))
-        self.assertEqual(after["related_work_budget_saved_chars"], 0)
-        self.assertEqual(before["sections"][0]["baseline_chars"], after["sections"][0]["baseline_chars"])
-        self.assertEqual(before["sections"][0]["residual_chars"], after["sections"][0]["residual_chars"])
+        _, uncapped = select_evidence(text, 18000, SelectionSettings(related_work_max_chars=18000))
+        selected, capped = select_evidence(text, 18000, SelectionSettings())
+        def allocation(report, related):
+            return sum(entry["baseline_chars"] + entry["residual_chars"] for entry in report["sections"]
+                       if entry["related_work"] == related)
+        self.assertLessEqual(allocation(capped, True), 900)
+        self.assertGreater(allocation(capped, False), allocation(uncapped, False))
+        self.assertEqual(allocation(capped, False) + allocation(capped, True),
+                         allocation(uncapped, False) + allocation(uncapped, True))
+        self.assertLessEqual(len(selected), 18000)
+        self.assertEqual(capped["related_work_budget_policy"], "redistribute")
 
     def test_short_body_keeps_related_work_in_full(self):
         text = "# Related Work\n\nPrior context worth keeping.\n\n# Method\n\nOur method."
