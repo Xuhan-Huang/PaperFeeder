@@ -587,7 +587,7 @@ Or just add URLs (metadata auto-fetched):
 
 - In GitHub Actions, open `Daily Paper Digest` -> `Run workflow`.
 - `days_back` controls how many days of papers are fetched (`--days` in CLI).
-- Scheduled synthesis receives at most 8 papers (`max_papers`), keeping the 18k per-paper evidence budget. Coarse filtering still selects up to 20 candidates for enrichment and fine ranking; blogs have separate limits.
+- Scheduled synthesis receives at most 10 papers (`max_papers`), keeping the 18k per-paper evidence budget. A remote audit found that the ninth and tenth ranked papers were both selected by Opus as Editor's Choice, so reducing this to 8 is not enabled. Coarse filtering still selects up to 20 candidates for enrichment and fine ranking; blogs have separate limits.
 - Optional `max_papers` workflow input (or `MAX_PAPERS` repository variable) overrides this positive-integer limit for comparison runs; leave it empty to use configuration.
 - `dry_run=true` generates preview artifact (`paper-report`) without sending email.
 - `reasoning_effort` optionally sets `low`, `medium`, `high`, `xhigh`, or `max`; leave it empty to preserve the provider default.
