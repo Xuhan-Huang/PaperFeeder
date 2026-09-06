@@ -86,7 +86,7 @@ class Config:
     # Filtering settings
     llm_filter_enabled: bool = True   # Enable LLM-based filtering (recommended)
     llm_filter_threshold: int = 5     # Only use LLM filter if > N papers after keyword filter
-    max_papers: int = 10
+    max_papers: int = 8
     
     # LLM Filter settings (use cheaper model for filtering)
     llm_filter_api_key: str = ""      # API key for filter LLM
