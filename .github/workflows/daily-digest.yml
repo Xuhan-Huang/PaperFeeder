@@ -4,9 +4,9 @@ permissions:
   contents: write
 
 on:
-  # Run daily at 08:23 China time, leaving room for scheduler delays
+  # Run daily at 07:13 China time, avoiding the top-of-hour load window
   schedule:
-    - cron: '23 8 * * *'
+    - cron: '13 7 * * *'
       timezone: 'Asia/Shanghai'
   
   # Allow manual trigger
