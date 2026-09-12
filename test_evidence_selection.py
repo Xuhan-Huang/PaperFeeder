@@ -235,7 +235,8 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(excluded[0]["status"], "omitted")
         self.assertIn("results", selection_notes(report))
 
-    def test_omission_notes_survive_all_prompt_paths(self):
+class SelectionPromptTests(unittest.IsolatedAsyncioTestCase):
+    async def test_omission_notes_survive_all_prompt_paths(self):
         _, coverage = select_evidence(section("Results", "secret"), 300, SelectionSettings())
         packet = EvidencePacket(item_id="p01", title="Paper", url="https://example.com/paper",
                                 arxiv_id="", semantic_paper_id="", source="manual", abstract="abstract",

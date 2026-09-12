@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from emailer import html_to_plain_text, sanitize_email_html
+from emailer import ResendEmailer, html_to_plain_text, sanitize_email_html
 
 
 class EmailContentTest(unittest.TestCase):
@@ -37,6 +38,42 @@ class EmailContentTest(unittest.TestCase):
         self.assertIn("Daily Digest", text)
         self.assertIn("this paper (https://example.com/paper)", text)
         self.assertNotIn("color: red", text)
+
+
+class ResendDeliveryTests(unittest.IsolatedAsyncioTestCase):
+    async def submit(self, *, scheduled_at=None, status=200, response_body=None):
+        response = MagicMock(status=status)
+        response.json = AsyncMock(return_value={"id": "email-test"} if response_body is None else response_body)
+        response.text = AsyncMock(return_value="request rejected")
+        response.__aenter__ = AsyncMock(return_value=response)
+        session = MagicMock()
+        session.post.return_value = response
+        session.__aenter__ = AsyncMock(return_value=session)
+        with patch("emailer.aiohttp.ClientSession", return_value=session):
+            success = await ResendEmailer("test").send(
+                "owner@example.com", "Digest", '<script>bad()</script><a href="https://arxiv.org/abs/test">Paper</a>',
+                attachments=[{"filename": "data.json", "content": "e30="}], scheduled_at=scheduled_at,
+            )
+        return success, session.post.call_args.kwargs["json"]
+
+    async def test_scheduled_payload_retains_safe_content_and_attachments(self):
+        success, payload = await self.submit(scheduled_at="2026-09-13T03:00:00Z")
+        self.assertTrue(success)
+        self.assertEqual(payload["scheduled_at"], "2026-09-13T03:00:00Z")
+        self.assertNotIn("<script", payload["html"])
+        self.assertIn("https://arxiv.org/abs/test", payload["text"])
+        self.assertEqual(len(payload["attachments"]), 1)
+
+    async def test_immediate_payload_has_no_scheduled_at(self):
+        success, payload = await self.submit()
+        self.assertTrue(success)
+        self.assertNotIn("scheduled_at", payload)
+
+    async def test_rejection_or_missing_email_id_is_not_success(self):
+        success, _ = await self.submit(status=422)
+        self.assertFalse(success)
+        success, _ = await self.submit(response_body={})
+        self.assertFalse(success)
 
 
 if __name__ == "__main__":

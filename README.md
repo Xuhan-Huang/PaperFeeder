@@ -587,13 +587,27 @@ Or just add URLs (metadata auto-fetched):
 
 - In GitHub Actions, open `Daily Paper Digest` -> `Run workflow`.
 - `days_back` controls how many days of papers are fetched (`--days` in CLI).
-- Daily runs are scheduled for 08:23 Asia/Shanghai. GitHub scheduling and mail delivery can delay receipt beyond that time.
+- Daily generation is triggered at 07:13 Asia/Shanghai. Resend schedules the completed digest for 11:00 Beijing time; GitHub delays can still make a late-generated report arrive later.
 - Scheduled synthesis receives at most 8 papers (`max_papers`), keeping the 18k per-paper evidence budget. This trial prioritizes cost and focus; an earlier audit found valuable papers below rank eight, so coverage can decrease. Unselected papers remain eligible but are not guaranteed to reappear. Coarse filtering still selects up to 20 candidates for enrichment and fine ranking; blogs have separate limits.
 - Optional `max_papers` workflow input (or `MAX_PAPERS` repository variable) overrides this positive-integer limit for comparison runs; leave it empty to use configuration.
-- `dry_run=true` generates preview artifact (`paper-report`) without sending email.
+- `dry_run=true` generates preview artifact (`paper-report`) without sending or scheduling email, regardless of delivery mode.
+- `delivery_mode=scheduled` (default) submits the report to Resend for today's 11:00 Asia/Shanghai; if that time has passed, it sends immediately. `delivery_mode=immediate` sends as soon as generation completes. The runner does not wait for 11:00.
 - `reasoning_effort` optionally sets `low`, `medium`, `high`, `xhigh`, or `max`; leave it empty to preserve the provider default.
 - Feedback and diagnostics, including `llm_usage_<run_id>.json`, are uploaded as `feedback-artifacts-<run_id>.zip` for each run.
 - Usage diagnostics contain provider-reported token counts and attempt metadata only; they exclude prompts, responses, paper content, credentials, and signed links.
+
+The delivery dropdown sits next to `dry_run` in Run workflow. A successful reservation is
+logged as scheduled/pending, not delivered. Failure notices are immediate. Inspect, reschedule,
+or cancel a pending digest in the Resend dashboard using its logged email ID. A separate manual
+run creates a separate email; it does not replace or cancel an earlier reservation.
+
+Locally, `python main.py --delivery-mode immediate` overrides the configured default.
+`EMAIL_DELIVERY_MODE` and `EMAIL_DELIVERY_TIME` override local YAML settings; the workflow
+explicitly fixes its scheduled target at 11:00 Beijing time. Delivery dates are computed in
+Asia/Shanghai even on UTC runners. Seen-memory advances only after Resend accepts the send
+or reservation request. Subsequent cancellation or provider-side failure does not automatically
+undo that state; scheduled delivery confirmation should be checked in Resend. Feedback reports
+are published when generated, so links are already available before the scheduled email sends.
 
 #### Troubleshooting
 

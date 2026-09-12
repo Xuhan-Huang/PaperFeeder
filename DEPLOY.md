@@ -327,6 +327,30 @@ Or use a scheduler container like [ofelia](https://github.com/mcuadros/ofelia).
 - Share keys in public channels
 - Use same key for dev and prod
 
+### Scheduled Email Delivery
+
+Daily generation remains at 07:13 Asia/Shanghai; the default delivery target is 11:00 Beijing
+time on the submission date. `Run workflow` exposes `delivery_mode` with `scheduled` (default)
+and `immediate`, next to `dry_run`. Dry runs never call Resend, including its scheduling API.
+After 11:00 the scheduled mode sends immediately instead of postponing the report to tomorrow.
+The HTTP request includes `scheduled_at` as an explicit UTC ISO 8601 timestamp, for example
+`2026-09-13T03:00:00Z`. The runner exits normally after reservation; no sleep or second cron is needed.
+
+Failure notifications are always immediate. Logs distinguish a reservation accepted by Resend
+from an immediate send request, and neither is proof of final inbox delivery. Use the logged
+Resend email ID to check `scheduled`, `sent`, `delivered`, `failed`, or `canceled` in the dashboard.
+Separate manual runs create separate emails and do not cancel a pending scheduled digest.
+
+Local settings are `email_delivery_mode: scheduled` and `email_delivery_time: "11:00"`, with
+`EMAIL_DELIVERY_MODE` / `EMAIL_DELIVERY_TIME` environment overrides or `--delivery-mode` on the CLI.
+The Actions workflow explicitly sets 11:00 and defaults scheduled events to scheduled mode.
+No new secrets or external scheduler are required.
+
+Seen-memory is updated after Resend accepts the request, preventing a rejected reservation from
+marking papers seen. Later provider-side scheduling failures or manual cancellation do not
+automatically reverse seen-memory; dashboard verification remains necessary. D1 feedback reports
+are published before delivery as before. Scheduling does not guarantee an exact Outlook inbox time.
+
 ### 2. Cost Optimization
 
 Daily runs are scheduled for 08:23 Asia/Shanghai; actual start and mail arrival can be later.

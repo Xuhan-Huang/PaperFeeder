@@ -24,6 +24,7 @@ from filters import KeywordFilter, LLMFilter
 from researcher import PaperResearcher, MockPaperResearcher
 from summarizer import PaperSummarizer, SynthesisError
 from emailer import ResendEmailer, FileEmailer
+from email_delivery import BEIJING_TIMEZONE, scheduled_delivery_time, validate_delivery_settings
 from config import Config
 from models import Paper, PaperSource
 from paper_extraction import ExtractionSettings
@@ -518,14 +519,24 @@ async def send_synthesis_failure_notification(error: Exception, config: Config) 
 
 async def send_email(report: str, config: Config, attachments: Optional[List[dict]] = None) -> bool:
     """Send the report via email."""
-    print(f"\n📧 Sending email to {config.email_to}...")
+    now = datetime.now(BEIJING_TIMEZONE).astimezone(BEIJING_TIMEZONE)
+    mode = getattr(config, "email_delivery_mode", "scheduled")
+    target = scheduled_delivery_time(mode, getattr(config, "email_delivery_time", "11:00"), now=now)
+    scheduled_at = target.isoformat().replace("+00:00", "Z") if target else None
+    if target:
+        print(f"\nEmail delivery: scheduling for {target.astimezone(BEIJING_TIMEZONE):%Y-%m-%d %H:%M} Asia/Shanghai")
+        print(f"   Resend scheduled_at: {scheduled_at}")
+    elif mode == "scheduled":
+        print("\nEmail delivery: today's target has passed; sending immediately")
+    else:
+        print("\nEmail delivery: immediate")
     
     emailer = ResendEmailer(
         api_key=config.resend_api_key,
         from_email=config.email_from
     )
     
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = now.strftime("%Y-%m-%d")
     subject = f"📚 Daily Paper Digest - {today}"
     
     success = await emailer.send(
@@ -533,12 +544,16 @@ async def send_email(report: str, config: Config, attachments: Optional[List[dic
         subject=subject,
         html_content=report,
         attachments=attachments or [],
+        scheduled_at=scheduled_at,
     )
     
     if success:
-        print("   ✅ Email sent successfully!")
+        if target:
+            print("   Email scheduled successfully; Resend accepted the request, delivery is pending")
+        else:
+            print("   Email send request accepted by Resend; inbox delivery is not yet confirmed")
     else:
-        print("   ❌ Failed to send email")
+        print("   Failed to submit email to Resend")
     
     return success
 
@@ -561,7 +576,7 @@ def _build_email_attachments(paths: List[str]) -> List[dict]:
     return attachments
 
 
-async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry_run: bool = False, no_papers: bool = False, no_blogs: bool = False):
+async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry_run: bool = False, no_papers: bool = False, no_blogs: bool = False, delivery_mode: Optional[str] = None):
     """
     Run the full AI Agent pipeline.
 
@@ -590,6 +605,12 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
 
     # Load config
     config = Config.from_yaml(config_path)
+    if delivery_mode is not None:
+        validate_delivery_settings(delivery_mode, getattr(config, "email_delivery_time", "11:00"))
+        config.email_delivery_mode = delivery_mode
+    mode = getattr(config, "email_delivery_mode", "scheduled")
+    delivery_time = getattr(config, "email_delivery_time", "11:00")
+    print(f"   Email delivery mode={mode} target={delivery_time} Asia/Shanghai dry_run={dry_run}")
     
     # Stage 1: Fetch (Recall)
     print("=" * 80)
@@ -730,11 +751,8 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
     except Exception as e:
         print(f"   ⚠️ Feedback manifest export failed (non-blocking): {e}")
 
-    # Persist seen-memory only for report-visible final papers (non-blocking).
     if dry_run:
         print("   📝 Dry run: skipped semantic memory update")
-    else:
-        update_semantic_memory_from_report(final_papers, report, config)
     
     # Output/Send
     print("\n" + "=" * 80)
@@ -754,6 +772,7 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
         email_sent = await send_email(email_report, config)
         if not email_sent:
             raise RuntimeError("Email delivery request failed")
+        update_semantic_memory_from_report(final_papers, report, config)
     
     print("\n" + "=" * 80)
     print("✨ Pipeline Complete!")
@@ -800,6 +819,8 @@ Environment Variables:
     parser.add_argument("--days", type=int, default=1, help="Days to look back for papers")
     parser.add_argument("--blog-days", type=int, default=7, help="Days to look back for blogs")
     parser.add_argument("--dry-run", action="store_true", help="Don't send email, save to file")
+    parser.add_argument("--delivery-mode", choices=("scheduled", "immediate"),
+                        help="Send now, or schedule for the configured Beijing time (default 11:00)")
     parser.add_argument("--no-blogs", action="store_true", help="Disable blog fetching")
     parser.add_argument("--no-papers", action="store_true", help="Disable paper fetching")
     
@@ -810,7 +831,8 @@ Environment Variables:
         days_back=args.days,
         dry_run=args.dry_run,
         no_papers=args.no_papers,
-        no_blogs=args.no_blogs
+        no_blogs=args.no_blogs,
+        delivery_mode=args.delivery_mode,
     ))
 
 

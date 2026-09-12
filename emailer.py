@@ -123,6 +123,8 @@ class ResendEmailer(BaseEmailer):
         html_content: str,
         text_content: Optional[str] = None,
         attachments: Optional[list[dict]] = None,
+        *,
+        scheduled_at: Optional[str] = None,
     ) -> bool:
         """Send an email using Resend."""
         safe_html_content = sanitize_email_html(html_content)
@@ -144,6 +146,8 @@ class ResendEmailer(BaseEmailer):
             payload["text"] = safe_text_content
         if attachments:
             payload["attachments"] = attachments
+        if scheduled_at:
+            payload["scheduled_at"] = scheduled_at
         
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -156,7 +160,9 @@ class ResendEmailer(BaseEmailer):
                     email_id = str(result.get("id", "")).strip()
                     if email_id:
                         print(f"   Resend email ID: {email_id}")
-                    return True
+                        return True
+                    print("Resend error: accepted response did not contain an email ID")
+                    return False
                 else:
                     error = await response.text()
                     print(f"Resend error: {response.status} - {error}")

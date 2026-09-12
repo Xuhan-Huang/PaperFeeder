@@ -14,6 +14,7 @@ load_dotenv()
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from evidence_selection import SelectionSettings
+from email_delivery import validate_delivery_settings
 
 
 @dataclass
@@ -35,6 +36,8 @@ class Config:
     resend_api_key: str = ""
     email_to: str = ""
     email_from: str = "paperfeeder@resend.dev"
+    email_delivery_mode: str = "scheduled"
+    email_delivery_time: str = "11:00"
     
     # arXiv settings (fewer categories = faster queries)
     arxiv_categories: list[str] = field(default_factory=lambda: [
@@ -186,6 +189,7 @@ class Config:
     feedback_resolution_run_cache_enabled: bool = True
     
     def __post_init__(self) -> None:
+        validate_delivery_settings(self.email_delivery_mode, self.email_delivery_time)
         if type(self.max_papers) is not int or self.max_papers < 1:
             raise ValueError("max_papers must be a positive integer")
         SelectionSettings(
@@ -217,6 +221,8 @@ class Config:
             "max_papers": os.getenv("MAX_PAPERS"),
             "resend_api_key": os.getenv("RESEND_API_KEY"),
             "email_to": os.getenv("EMAIL_TO"),
+            "email_delivery_mode": os.getenv("EMAIL_DELIVERY_MODE"),
+            "email_delivery_time": os.getenv("EMAIL_DELIVERY_TIME"),
             "tavily_api_key": os.getenv("TAVILY_API_KEY"),
             "cloudflare_account_id": os.getenv("CLOUDFLARE_ACCOUNT_ID"),
             "cloudflare_api_token": os.getenv("CLOUDFLARE_API_TOKEN"),
@@ -380,6 +386,8 @@ class Config:
             "llm_model": self.llm_model,
             "email_to": self.email_to,
             "email_from": self.email_from,
+            "email_delivery_mode": self.email_delivery_mode,
+            "email_delivery_time": self.email_delivery_time,
             "arxiv_categories": self.arxiv_categories,
             "keywords": self.keywords,
             "exclude_keywords": self.exclude_keywords,

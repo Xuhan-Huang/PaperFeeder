@@ -59,6 +59,46 @@ class SynthesisConfigTests(unittest.TestCase):
 
 
 class DegradedPipelineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_seen_memory_requires_accepted_delivery_request(self) -> None:
+        paper = Paper(title="Paper", abstract="Evidence", url="https://example.com/paper", source=PaperSource.MANUAL)
+        config = SimpleNamespace(papers_enabled=True, email_to="owner@example.com", email_delivery_mode="scheduled")
+        for accepted in (False, True):
+            events = []
+
+            async def submit(*args, **kwargs):
+                events.append("submitted")
+                return accepted
+
+            with (
+                self.subTest(accepted=accepted),
+                patch("main.Config.from_yaml", return_value=config),
+                patch("main.fetch_papers", new=AsyncMock(return_value=[paper])),
+                patch("main.fetch_blogs", new=AsyncMock(return_value=([], []))),
+                patch("main.filter_papers_coarse", new=AsyncMock(return_value=[paper])),
+                patch("main.enrich_papers", new=AsyncMock(return_value=[paper])),
+                patch("main.filter_papers_fine", new=AsyncMock(return_value=[paper])),
+                patch("main.summarize_papers", new=AsyncMock(return_value="<p>Digest</p>")),
+                patch("main.export_run_feedback_manifest", return_value=None),
+                patch("main.send_email", new=AsyncMock(side_effect=submit)),
+                patch("main.update_semantic_memory_from_report", side_effect=lambda *args: events.append("memory")),
+            ):
+                if accepted:
+                    await run_pipeline(config_path="unused.yaml")
+                else:
+                    with self.assertRaisesRegex(RuntimeError, "Email delivery request failed"):
+                        await run_pipeline(config_path="unused.yaml")
+            self.assertEqual(events, ["submitted", "memory"] if accepted else ["submitted"])
+
+    async def test_manual_delivery_override_reaches_pipeline(self) -> None:
+        config = SimpleNamespace(papers_enabled=True, email_to="owner@example.com", email_delivery_mode="scheduled", email_delivery_time="11:00")
+        with (
+            patch("main.Config.from_yaml", return_value=config),
+            patch("main.fetch_papers", new=AsyncMock(return_value=[])),
+            patch("main.fetch_blogs", new=AsyncMock(return_value=([], []))),
+        ):
+            await run_pipeline(config_path="unused.yaml", dry_run=True, delivery_mode="immediate")
+        self.assertEqual(config.email_delivery_mode, "immediate")
+
     async def test_terminal_synthesis_failure_skips_all_persistent_state(self) -> None:
         paper = Paper(
             title="Retry Tomorrow",
@@ -103,6 +143,8 @@ class DegradedPipelineTests(unittest.IsolatedAsyncioTestCase):
         config = SimpleNamespace(
             papers_enabled=True,
             email_to="owner@example.com",
+            email_delivery_mode="scheduled",
+            email_delivery_time="11:00",
         )
         file_emailer = SimpleNamespace(send=AsyncMock(return_value=True))
         with (

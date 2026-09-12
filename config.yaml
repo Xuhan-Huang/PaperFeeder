@@ -2,6 +2,9 @@
 # Persona: Senior Principal Researcher at a Top-Tier AI Lab
 # Philosophy: Hunt for "The Next Big Thing", despise incremental work.
 
+email_delivery_mode: "scheduled"
+email_delivery_time: "11:00"
+
 # =============================================================================
 # arXiv categories to monitor
 # =============================================================================
