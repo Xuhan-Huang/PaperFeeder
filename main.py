@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
 from urllib.parse import urlsplit, urlunsplit
+from zoneinfo import ZoneInfo
 
 from sources import ArxivSource, HuggingFaceSource, ManualSource, SemanticScholarSource, BlogSource
 from sources.blog_sources import fetch_blog_posts
@@ -24,7 +25,6 @@ from filters import KeywordFilter, LLMFilter
 from researcher import PaperResearcher, MockPaperResearcher
 from summarizer import PaperSummarizer, SynthesisError
 from emailer import ResendEmailer, FileEmailer
-from email_delivery import BEIJING_TIMEZONE, scheduled_delivery_time, validate_delivery_settings
 from config import Config
 from models import Paper, PaperSource
 from paper_extraction import ExtractionSettings
@@ -519,17 +519,8 @@ async def send_synthesis_failure_notification(error: Exception, config: Config) 
 
 async def send_email(report: str, config: Config, attachments: Optional[List[dict]] = None) -> bool:
     """Send the report via email."""
-    now = datetime.now(BEIJING_TIMEZONE).astimezone(BEIJING_TIMEZONE)
-    mode = getattr(config, "email_delivery_mode", "scheduled")
-    target = scheduled_delivery_time(mode, getattr(config, "email_delivery_time", "11:00"), now=now)
-    scheduled_at = target.isoformat().replace("+00:00", "Z") if target else None
-    if target:
-        print(f"\nEmail delivery: scheduling for {target.astimezone(BEIJING_TIMEZONE):%Y-%m-%d %H:%M} Asia/Shanghai")
-        print(f"   Resend scheduled_at: {scheduled_at}")
-    elif mode == "scheduled":
-        print("\nEmail delivery: today's target has passed; sending immediately")
-    else:
-        print("\nEmail delivery: immediate")
+    now = datetime.now(ZoneInfo("Asia/Shanghai")).astimezone(ZoneInfo("Asia/Shanghai"))
+    print("\nEmail delivery: immediate")
     
     emailer = ResendEmailer(
         api_key=config.resend_api_key,
@@ -544,14 +535,10 @@ async def send_email(report: str, config: Config, attachments: Optional[List[dic
         subject=subject,
         html_content=report,
         attachments=attachments or [],
-        scheduled_at=scheduled_at,
     )
     
     if success:
-        if target:
-            print("   Email scheduled successfully; Resend accepted the request, delivery is pending")
-        else:
-            print("   Email send request accepted by Resend; inbox delivery is not yet confirmed")
+        print("   Email send request accepted by Resend; inbox delivery is not yet confirmed")
     else:
         print("   Failed to submit email to Resend")
     
@@ -576,7 +563,7 @@ def _build_email_attachments(paths: List[str]) -> List[dict]:
     return attachments
 
 
-async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry_run: bool = False, no_papers: bool = False, no_blogs: bool = False, delivery_mode: Optional[str] = None):
+async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry_run: bool = False, no_papers: bool = False, no_blogs: bool = False):
     """
     Run the full AI Agent pipeline.
 
@@ -605,12 +592,7 @@ async def run_pipeline(config_path: str = "config.yaml", days_back: int = 1, dry
 
     # Load config
     config = Config.from_yaml(config_path)
-    if delivery_mode is not None:
-        validate_delivery_settings(delivery_mode, getattr(config, "email_delivery_time", "11:00"))
-        config.email_delivery_mode = delivery_mode
-    mode = getattr(config, "email_delivery_mode", "scheduled")
-    delivery_time = getattr(config, "email_delivery_time", "11:00")
-    print(f"   Email delivery mode={mode} target={delivery_time} Asia/Shanghai dry_run={dry_run}")
+    print(f"   Email delivery: immediate; dry_run={dry_run}")
     
     # Stage 1: Fetch (Recall)
     print("=" * 80)
@@ -819,8 +801,6 @@ Environment Variables:
     parser.add_argument("--days", type=int, default=1, help="Days to look back for papers")
     parser.add_argument("--blog-days", type=int, default=7, help="Days to look back for blogs")
     parser.add_argument("--dry-run", action="store_true", help="Don't send email, save to file")
-    parser.add_argument("--delivery-mode", choices=("scheduled", "immediate"),
-                        help="Send now, or schedule for the configured Beijing time (default 11:00)")
     parser.add_argument("--no-blogs", action="store_true", help="Disable blog fetching")
     parser.add_argument("--no-papers", action="store_true", help="Disable paper fetching")
     
@@ -832,7 +812,6 @@ Environment Variables:
         dry_run=args.dry_run,
         no_papers=args.no_papers,
         no_blogs=args.no_blogs,
-        delivery_mode=args.delivery_mode,
     ))
 
 

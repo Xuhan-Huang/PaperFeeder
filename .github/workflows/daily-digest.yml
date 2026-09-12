@@ -4,9 +4,9 @@ permissions:
   contents: write
 
 on:
-  # Run daily at 07:13 China time, avoiding the top-of-hour load window
+  # Run daily at 08:13 China time; send immediately after report generation
   schedule:
-    - cron: '13 7 * * *'
+    - cron: '13 8 * * *'
       timezone: 'Asia/Shanghai'
   
   # Allow manual trigger
@@ -21,14 +21,6 @@ on:
         required: false
         default: 'false'
         type: boolean
-      delivery_mode:
-        description: 'Delivery: scheduled = 11:00 Beijing time (or immediately if late); immediate = send now'
-        required: false
-        default: 'scheduled'
-        type: choice
-        options:
-          - scheduled
-          - immediate
       reasoning_effort:
         description: 'Optional synthesis effort: low, medium, high, xhigh, or max'
         required: false
@@ -158,8 +150,6 @@ jobs:
           # Email
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          EMAIL_DELIVERY_MODE: ${{ inputs.delivery_mode || 'scheduled' }}
-          EMAIL_DELIVERY_TIME: '11:00'
           # Optional: Cloudflare D1
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

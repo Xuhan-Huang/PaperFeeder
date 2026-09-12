@@ -587,33 +587,30 @@ Or just add URLs (metadata auto-fetched):
 
 - In GitHub Actions, open `Daily Paper Digest` -> `Run workflow`.
 - `days_back` controls how many days of papers are fetched (`--days` in CLI).
-- Daily generation is triggered at 07:13 Asia/Shanghai. Resend schedules the completed digest for 11:00 Beijing time; GitHub delays can still make a late-generated report arrive later.
+- Daily generation is triggered at 08:13 Asia/Shanghai, one hour later than the preceding schedule. The completed digest is sent immediately through Resend. Actual arrival depends on GitHub scheduling, report generation, and email delivery; there is no fixed 11:00 delivery target.
 - Scheduled synthesis receives at most 8 papers (`max_papers`), keeping the 18k per-paper evidence budget. This trial prioritizes cost and focus; an earlier audit found valuable papers below rank eight, so coverage can decrease. Unselected papers remain eligible but are not guaranteed to reappear. Coarse filtering still selects up to 20 candidates for enrichment and fine ranking; blogs have separate limits.
 - Optional `max_papers` workflow input (or `MAX_PAPERS` repository variable) overrides this positive-integer limit for comparison runs; leave it empty to use configuration.
-- `dry_run=true` generates preview artifact (`paper-report`) without sending or scheduling email, regardless of delivery mode.
-- `delivery_mode=scheduled` (default) submits the report to Resend for today's 11:00 Asia/Shanghai; if that time has passed, it sends immediately. `delivery_mode=immediate` sends as soon as generation completes. The runner does not wait for 11:00.
+- `dry_run=true` generates preview artifact (`paper-report`) without sending email.
 - `reasoning_effort` optionally sets `low`, `medium`, `high`, `xhigh`, or `max`; leaving it empty uses the repository variable, then the configured/provider default.
 - Repository variable `LLM_MODEL` overrides the existing model secret for both manual and scheduled runs. Remove the variable to return to the secret-configured model.
 - Feedback and diagnostics, including `llm_usage_<run_id>.json`, are uploaded as `feedback-artifacts-<run_id>.zip` for each run.
 - Usage diagnostics contain provider-reported token counts and attempt metadata only; they exclude prompts, responses, paper content, credentials, and signed links.
 
-The delivery dropdown sits next to `dry_run` in Run workflow. A successful reservation is
-logged as scheduled/pending, not delivered. Failure notices are immediate. Inspect, reschedule,
-or cancel a pending digest in the Resend dashboard using its logged email ID. A separate manual
-run creates a separate email; it does not replace or cancel an earlier reservation.
+Both daily and manual runs send immediately after generation. Resend scheduled delivery
+has been removed after paired tests reproduced domain-verification failures for scheduled
+emails while immediate emails were delivered. The runner does not wait for a delivery time.
+The former `delivery_mode` input, `--delivery-mode` option, and delivery mode/time settings
+have been removed. Remove `email_delivery_mode` and `email_delivery_time` from custom YAML files.
 
-Locally, `python main.py --delivery-mode immediate` overrides the configured default.
-`EMAIL_DELIVERY_MODE` and `EMAIL_DELIVERY_TIME` override local YAML settings; the workflow
-explicitly fixes its scheduled target at 11:00 Beijing time. Delivery dates are computed in
-Asia/Shanghai even on UTC runners. Seen-memory advances only after Resend accepts the send
-or reservation request. Subsequent cancellation or provider-side failure does not automatically
-undo that state; scheduled delivery confirmation should be checked in Resend. Feedback reports
-are published when generated, so links are already available before the scheduled email sends.
+Digest subject dates use Asia/Shanghai even on UTC runners. Seen-memory advances only after
+Resend accepts the send request. Acceptance is not confirmation of final inbox delivery;
+use the logged Resend email ID to check delivery status. A later provider-side failure does
+not automatically undo seen-memory. Feedback reports are published before sending as before.
 
 Sonnet 5 trial: the September 13-15, 2026 daily reports use repository variables
 `LLM_MODEL=anthropic/claude-sonnet-5` and `SYNTHESIS_REASONING_EFFORT=high`, matching the
 local comparison's effort setting. Paper count remains 8, evidence remains 18k per paper,
-and Resend delivery remains scheduled for 11:00 Beijing time. Review report quality,
+and reports are sent immediately after generation. Review report quality,
 numeric accuracy, validation retries, and usage after three daily reports; this review
 window does not automatically revert the model. To restore the preceding configuration,
 remove both trial variables so the existing model secret and configured effort apply again.

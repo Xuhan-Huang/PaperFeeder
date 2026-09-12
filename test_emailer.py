@@ -41,7 +41,7 @@ class EmailContentTest(unittest.TestCase):
 
 
 class ResendDeliveryTests(unittest.IsolatedAsyncioTestCase):
-    async def submit(self, *, scheduled_at=None, status=200, response_body=None):
+    async def submit(self, *, status=200, response_body=None):
         response = MagicMock(status=status)
         response.json = AsyncMock(return_value={"id": "email-test"} if response_body is None else response_body)
         response.text = AsyncMock(return_value="request rejected")
@@ -52,14 +52,13 @@ class ResendDeliveryTests(unittest.IsolatedAsyncioTestCase):
         with patch("emailer.aiohttp.ClientSession", return_value=session):
             success = await ResendEmailer("test").send(
                 "owner@example.com", "Digest", '<script>bad()</script><a href="https://arxiv.org/abs/test">Paper</a>',
-                attachments=[{"filename": "data.json", "content": "e30="}], scheduled_at=scheduled_at,
+                attachments=[{"filename": "data.json", "content": "e30="}],
             )
         return success, session.post.call_args.kwargs["json"]
 
-    async def test_scheduled_payload_retains_safe_content_and_attachments(self):
-        success, payload = await self.submit(scheduled_at="2026-09-13T03:00:00Z")
+    async def test_payload_retains_safe_content_and_attachments(self):
+        success, payload = await self.submit()
         self.assertTrue(success)
-        self.assertEqual(payload["scheduled_at"], "2026-09-13T03:00:00Z")
         self.assertNotIn("<script", payload["html"])
         self.assertIn("https://arxiv.org/abs/test", payload["text"])
         self.assertEqual(len(payload["attachments"]), 1)

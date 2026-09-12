@@ -61,7 +61,7 @@ class SynthesisConfigTests(unittest.TestCase):
 class DegradedPipelineTests(unittest.IsolatedAsyncioTestCase):
     async def test_seen_memory_requires_accepted_delivery_request(self) -> None:
         paper = Paper(title="Paper", abstract="Evidence", url="https://example.com/paper", source=PaperSource.MANUAL)
-        config = SimpleNamespace(papers_enabled=True, email_to="owner@example.com", email_delivery_mode="scheduled")
+        config = SimpleNamespace(papers_enabled=True, email_to="owner@example.com")
         for accepted in (False, True):
             events = []
 
@@ -88,16 +88,6 @@ class DegradedPipelineTests(unittest.IsolatedAsyncioTestCase):
                     with self.assertRaisesRegex(RuntimeError, "Email delivery request failed"):
                         await run_pipeline(config_path="unused.yaml")
             self.assertEqual(events, ["submitted", "memory"] if accepted else ["submitted"])
-
-    async def test_manual_delivery_override_reaches_pipeline(self) -> None:
-        config = SimpleNamespace(papers_enabled=True, email_to="owner@example.com", email_delivery_mode="scheduled", email_delivery_time="11:00")
-        with (
-            patch("main.Config.from_yaml", return_value=config),
-            patch("main.fetch_papers", new=AsyncMock(return_value=[])),
-            patch("main.fetch_blogs", new=AsyncMock(return_value=([], []))),
-        ):
-            await run_pipeline(config_path="unused.yaml", dry_run=True, delivery_mode="immediate")
-        self.assertEqual(config.email_delivery_mode, "immediate")
 
     async def test_terminal_synthesis_failure_skips_all_persistent_state(self) -> None:
         paper = Paper(
@@ -143,8 +133,6 @@ class DegradedPipelineTests(unittest.IsolatedAsyncioTestCase):
         config = SimpleNamespace(
             papers_enabled=True,
             email_to="owner@example.com",
-            email_delivery_mode="scheduled",
-            email_delivery_time="11:00",
         )
         file_emailer = SimpleNamespace(send=AsyncMock(return_value=True))
         with (

@@ -77,15 +77,16 @@ SYNTHESIS_MAX_OUTPUT_TOKENS=16384
 
 ### Step 4: Configure Schedule
 
-Edit `.github/workflows/daily-paper.yml`:
+Edit `.github/workflows/daily-digest.yml`:
 
 ```yaml
 name: Daily Paper Digest
 
 on:
   schedule:
-    # Run at 8:00 AM UTC (adjust to your timezone)
-    - cron: '0 8 * * *'
+    # Run at 08:13 Beijing time; send when report generation completes
+    - cron: '13 8 * * *'
+      timezone: 'Asia/Shanghai'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -327,33 +328,29 @@ Or use a scheduler container like [ofelia](https://github.com/mcuadros/ofelia).
 - Share keys in public channels
 - Use same key for dev and prod
 
-### Scheduled Email Delivery
+### Email Delivery
 
-Daily generation remains at 07:13 Asia/Shanghai; the default delivery target is 11:00 Beijing
-time on the submission date. `Run workflow` exposes `delivery_mode` with `scheduled` (default)
-and `immediate`, next to `dry_run`. Dry runs never call Resend, including its scheduling API.
-After 11:00 the scheduled mode sends immediately instead of postponing the report to tomorrow.
-The HTTP request includes `scheduled_at` as an explicit UTC ISO 8601 timestamp, for example
-`2026-09-13T03:00:00Z`. The runner exits normally after reservation; no sleep or second cron is needed.
+Daily generation is triggered at 08:13 Asia/Shanghai, one hour later than the preceding
+07:13 schedule. Daily and manual runs send through Resend immediately after generation.
+Dry runs never call Resend. The runner does not wait, and requests omit `scheduled_at`.
+Arrival time depends on GitHub scheduling, generation time, and email delivery; 11:00 is
+not a guaranteed or configured delivery time.
 
-Failure notifications are always immediate. Logs distinguish a reservation accepted by Resend
-from an immediate send request, and neither is proof of final inbox delivery. Use the logged
-Resend email ID to check `scheduled`, `sent`, `delivered`, `failed`, or `canceled` in the dashboard.
-Separate manual runs create separate emails and do not cancel a pending scheduled digest.
+Resend scheduled delivery was removed after controlled tests reproduced domain-verification
+failures for both `paperfeeder@resend.dev` and `onboarding@resend.dev`, while their immediate
+counterparts were delivered. The former workflow `delivery_mode` input, `--delivery-mode`
+CLI option, and delivery mode/time settings have been removed. Remove `email_delivery_mode`
+and `email_delivery_time` from custom YAML files.
 
-Local settings are `email_delivery_mode: scheduled` and `email_delivery_time: "11:00"`, with
-`EMAIL_DELIVERY_MODE` / `EMAIL_DELIVERY_TIME` environment overrides or `--delivery-mode` on the CLI.
-The Actions workflow explicitly sets 11:00 and defaults scheduled events to scheduled mode.
-No new secrets or external scheduler are required.
-
-Seen-memory is updated after Resend accepts the request, preventing a rejected reservation from
-marking papers seen. Later provider-side scheduling failures or manual cancellation do not
-automatically reverse seen-memory; dashboard verification remains necessary. D1 feedback reports
-are published before delivery as before. Scheduling does not guarantee an exact Outlook inbox time.
+Logs include the Resend email ID and distinguish API acceptance from inbox delivery.
+Use that ID to check `sent`, `delivered`, or `failed` in the dashboard. Failure notifications
+are also immediate. Seen-memory advances only after Resend accepts the request; a later
+provider-side failure does not automatically reverse it. D1 feedback reports are published
+before sending as before. No additional secrets or scheduler are required.
 
 ### 2. Cost Optimization
 
-Daily generation is scheduled for 07:13 Asia/Shanghai, with Resend delivery targeted at 11:00.
+Daily generation is scheduled for 08:13 Asia/Shanghai, with immediate Resend delivery.
 The default paper count passed to synthesis is 8, with up to 18,000 evidence characters
 per paper. Coarse filtering still selects up to 20 candidates; enrichment and fine-ranking
 costs are not reduced by this limit. A manual `max_papers=10` workflow input allows a
