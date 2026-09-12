@@ -592,7 +592,8 @@ Or just add URLs (metadata auto-fetched):
 - Optional `max_papers` workflow input (or `MAX_PAPERS` repository variable) overrides this positive-integer limit for comparison runs; leave it empty to use configuration.
 - `dry_run=true` generates preview artifact (`paper-report`) without sending or scheduling email, regardless of delivery mode.
 - `delivery_mode=scheduled` (default) submits the report to Resend for today's 11:00 Asia/Shanghai; if that time has passed, it sends immediately. `delivery_mode=immediate` sends as soon as generation completes. The runner does not wait for 11:00.
-- `reasoning_effort` optionally sets `low`, `medium`, `high`, `xhigh`, or `max`; leave it empty to preserve the provider default.
+- `reasoning_effort` optionally sets `low`, `medium`, `high`, `xhigh`, or `max`; leaving it empty uses the repository variable, then the configured/provider default.
+- Repository variable `LLM_MODEL` overrides the existing model secret for both manual and scheduled runs. Remove the variable to return to the secret-configured model.
 - Feedback and diagnostics, including `llm_usage_<run_id>.json`, are uploaded as `feedback-artifacts-<run_id>.zip` for each run.
 - Usage diagnostics contain provider-reported token counts and attempt metadata only; they exclude prompts, responses, paper content, credentials, and signed links.
 
@@ -608,6 +609,14 @@ Asia/Shanghai even on UTC runners. Seen-memory advances only after Resend accept
 or reservation request. Subsequent cancellation or provider-side failure does not automatically
 undo that state; scheduled delivery confirmation should be checked in Resend. Feedback reports
 are published when generated, so links are already available before the scheduled email sends.
+
+Sonnet 5 trial: the September 13-15, 2026 daily reports use repository variables
+`LLM_MODEL=anthropic/claude-sonnet-5` and `SYNTHESIS_REASONING_EFFORT=high`, matching the
+local comparison's effort setting. Paper count remains 8, evidence remains 18k per paper,
+and Resend delivery remains scheduled for 11:00 Beijing time. Review report quality,
+numeric accuracy, validation retries, and usage after three daily reports; this review
+window does not automatically revert the model. To restore the preceding configuration,
+remove both trial variables so the existing model secret and configured effort apply again.
 
 #### Troubleshooting
 

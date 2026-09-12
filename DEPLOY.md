@@ -353,12 +353,19 @@ are published before delivery as before. Scheduling does not guarantee an exact 
 
 ### 2. Cost Optimization
 
-Daily runs are scheduled for 08:23 Asia/Shanghai; actual start and mail arrival can be later.
+Daily generation is scheduled for 07:13 Asia/Shanghai, with Resend delivery targeted at 11:00.
 The default paper count passed to synthesis is 8, with up to 18,000 evidence characters
 per paper. Coarse filtering still selects up to 20 candidates; enrichment and fine-ranking
 costs are not reduced by this limit. A manual `max_papers=10` workflow input allows a
 dry-run audit of the ninth/tenth ranked papers against Opus editorial choices. The optional
 `MAX_PAPERS` repository variable overrides the configured default on scheduled runs.
+
+Model trials use repository variable `LLM_MODEL`, which takes precedence over the existing
+`LLM_MODEL` secret. The September 13-15, 2026 trial uses `anthropic/claude-sonnet-5` with
+`SYNTHESIS_REASONING_EFFORT=high`. Remove these two variables to restore the previous
+secret-configured model and configured/provider effort. The three-day window is for review;
+there is no automatic model reversion. Filtering credentials and the DeepSeek filter model
+are independent of this synthesis-model override.
 
 ```bash
 # Use cheap model for filtering (called 2x per paper)

@@ -117,7 +117,7 @@ jobs:
           # LLM 配置 (主模型 - 用于生成报告)
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || secrets.LLM_MODEL }}
           # LLM Filter 配置 (筛选模型 - 可以用更便宜的)
           LLM_FILTER_API_KEY: ${{ secrets.LLM_FILTER_API_KEY }}
           LLM_FILTER_BASE_URL: ${{ secrets.LLM_FILTER_BASE_URL }}
