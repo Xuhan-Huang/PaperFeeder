@@ -84,8 +84,8 @@ name: Daily Paper Digest
 
 on:
   schedule:
-    # Run at 08:13 Beijing time; send when report generation completes
-    - cron: '13 8 * * *'
+    # Trial 09:03 Beijing time; send when report generation completes
+    - cron: '3 9 * * *'
       timezone: 'Asia/Shanghai'
   workflow_dispatch:  # Allow manual trigger
 
@@ -330,11 +330,23 @@ Or use a scheduler container like [ofelia](https://github.com/mcuadros/ofelia).
 
 ### Email Delivery
 
-Daily generation is triggered at 08:13 Asia/Shanghai, one hour later than the preceding
-07:13 schedule. Daily and manual runs send through Resend immediately after generation.
+Daily generation is triggered at 09:03 Asia/Shanghai as a trial targeting arrival around
+11:00. Daily and manual runs send through Resend immediately after generation.
 Dry runs never call Resend. The runner does not wait, and requests omit `scheduled_at`.
 Arrival time depends on GitHub scheduling, generation time, and email delivery; 11:00 is
 not a guaranteed or configured delivery time.
+
+The September 13, 2026 audit found that the five September 8-12 runs shared the 07:13
+trigger and workflow revision. Run creation lagged the trigger by 108-120 minutes.
+Four normal digests were submitted to Resend at 09:06-09:22; the fifth run sent a
+synthesis failure notice. Moving the trigger 110 minutes later to 09:03 would place
+those normal submissions around 10:56-11:12 if the delays stay similar. Resend
+`created_at` measures request acceptance, not the recipient's exact inbox time.
+This is a small-sample experiment: the September 7 run at 08:23 submitted at 12:58,
+so delays cannot be assumed constant across trigger times. September 13 also changed
+the synthesis model to Sonnet; compare scheduler delay and generation time separately.
+Review the next three scheduled runs before adjusting again. The trial does not revert
+automatically. A local commit must be pushed to the default branch to affect Actions.
 
 Resend scheduled delivery was removed after controlled tests reproduced domain-verification
 failures for both `paperfeeder@resend.dev` and `onboarding@resend.dev`, while their immediate
@@ -350,7 +362,7 @@ before sending as before. No additional secrets or scheduler are required.
 
 ### 2. Cost Optimization
 
-Daily generation is scheduled for 08:13 Asia/Shanghai, with immediate Resend delivery.
+Daily generation is scheduled for 09:03 Asia/Shanghai, with immediate Resend delivery.
 The default paper count passed to synthesis is 8, with up to 18,000 evidence characters
 per paper. Coarse filtering still selects up to 20 candidates; enrichment and fine-ranking
 costs are not reduced by this limit. A manual `max_papers=10` workflow input allows a
