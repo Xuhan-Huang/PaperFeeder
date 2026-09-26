@@ -144,7 +144,7 @@ Use **GitHub Actions** for **FREE** automated deployment (no server needed):
 1. Fork this repository
 2. Add your API keys as GitHub Secrets
 3. Enable GitHub Actions
-4. Receive daily emails after report generation (07:53 Asia/Shanghai trigger trial)
+4. Receive daily emails after report generation (07:47 Asia/Shanghai trigger trial)
 
 **👉 See [DEPLOY.md](DEPLOY.md) for complete setup guide** (takes ~5 minutes)
 
@@ -587,7 +587,7 @@ Or just add URLs (metadata auto-fetched):
 
 - In GitHub Actions, open `Daily Paper Digest` -> `Run workflow`.
 - `days_back` controls how many days of papers are fetched (`--days` in CLI).
-- Daily generation is triggered at 07:53 Asia/Shanghai as a trial targeting arrival around 11:00. The completed digest is sent immediately through Resend. Actual arrival depends on GitHub scheduling, report generation, and email delivery; there is no fixed delivery time. See [the timing rationale](DEPLOY.md#email-delivery).
+- Daily generation is triggered at 07:47 Asia/Shanghai as a trial targeting arrival around 11:00. The completed digest is sent immediately through Resend. Actual arrival depends on GitHub scheduling, report generation, and email delivery; there is no fixed delivery time. See [the timing rationale](DEPLOY.md#email-delivery).
 - Scheduled synthesis receives at most 8 papers (`max_papers`), keeping the 18k per-paper evidence budget. This trial prioritizes cost and focus; an earlier audit found valuable papers below rank eight, so coverage can decrease. Unselected papers remain eligible but are not guaranteed to reappear. Coarse filtering still selects up to 20 candidates for enrichment and fine ranking; blogs have separate limits.
 - Optional `max_papers` workflow input (or `MAX_PAPERS` repository variable) overrides this positive-integer limit for comparison runs; leave it empty to use configuration.
 - `dry_run=true` generates preview artifact (`paper-report`) without sending email.
