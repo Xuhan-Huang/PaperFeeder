@@ -84,8 +84,8 @@ name: Daily Paper Digest
 
 on:
   schedule:
-    # Trial 09:03 Beijing time; send when report generation completes
-    - cron: '3 9 * * *'
+    # Trial 07:53 Beijing time; send when report generation completes
+    - cron: '53 7 * * *'
       timezone: 'Asia/Shanghai'
   workflow_dispatch:  # Allow manual trigger
 
@@ -330,23 +330,32 @@ Or use a scheduler container like [ofelia](https://github.com/mcuadros/ofelia).
 
 ### Email Delivery
 
-Daily generation is triggered at 09:03 Asia/Shanghai as a trial targeting arrival around
+Daily generation is triggered at 07:53 Asia/Shanghai as a trial targeting arrival around
 11:00. Daily and manual runs send through Resend immediately after generation.
 Dry runs never call Resend. The runner does not wait, and requests omit `scheduled_at`.
 Arrival time depends on GitHub scheduling, generation time, and email delivery; 11:00 is
 not a guaranteed or configured delivery time.
 
-The September 13, 2026 audit found that the five September 8-12 runs shared the 07:13
-trigger and workflow revision. Run creation lagged the trigger by 108-120 minutes.
-Four normal digests were submitted to Resend at 09:06-09:22; the fifth run sent a
-synthesis failure notice. Moving the trigger 110 minutes later to 09:03 would place
-those normal submissions around 10:56-11:12 if the delays stay similar. Resend
-`created_at` measures request acceptance, not the recipient's exact inbox time.
-This is a small-sample experiment: the September 7 run at 08:23 submitted at 12:58,
-so delays cannot be assumed constant across trigger times. September 13 also changed
-the synthesis model to Sonnet; compare scheduler delay and generation time separately.
-Review the next three scheduled runs before adjusting again. The trial does not revert
-automatically. A local commit must be pushed to the default branch to affect Actions.
+The September 26, 2026 audit checked all 13 September 14-26 scheduled runs. They used
+the same `9d38f72` revision, 09:03 trigger, and Sonnet/high synthesis settings. All 13
+normal digests were delivered, but Resend accepted them at 13:46-14:12. In the latest
+seven days (September 20-26), the median submission was 14:07:32; the median delay
+before run creation was 299.1 minutes, followed by about five minutes of processing.
+Matching Monday-Saturday across the two weeks, submissions shifted later by an average
+6.5 minutes; mean processing time changed by only 0.04 minutes. The previous estimate
+that moving 07:13 to 09:03 would preserve scheduling delay and yield 11:00 delivery
+did not hold.
+
+Starting September 27, the next seven-day trial uses 07:53, an untested point between
+the earlier 07:13 period (normal submissions at 09:06-09:22) and the single 08:23
+observation (12:58 submission). Those older periods differ in date and synthesis
+configuration; they guide where to experiment, not a calibrated arrival prediction.
+Do not treat the current five-hour scheduler delay as a constant across trigger times.
+Keep the model and generation settings fixed while observing September 27-October 3,
+then compare scheduler delay, generation time, and delivery status separately. Resend
+`created_at` measures request acceptance, not the recipient's exact inbox time. The
+trial does not revert automatically or create a monitoring task. A local commit must
+be pushed to the default branch to affect Actions.
 
 Resend scheduled delivery was removed after controlled tests reproduced domain-verification
 failures for both `paperfeeder@resend.dev` and `onboarding@resend.dev`, while their immediate
@@ -362,7 +371,7 @@ before sending as before. No additional secrets or scheduler are required.
 
 ### 2. Cost Optimization
 
-Daily generation is scheduled for 09:03 Asia/Shanghai, with immediate Resend delivery.
+Daily generation is scheduled for 07:53 Asia/Shanghai, with immediate Resend delivery.
 The default paper count passed to synthesis is 8, with up to 18,000 evidence characters
 per paper. Coarse filtering still selects up to 20 candidates; enrichment and fine-ranking
 costs are not reduced by this limit. A manual `max_papers=10` workflow input allows a
