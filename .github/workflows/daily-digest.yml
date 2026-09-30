@@ -4,9 +4,9 @@ permissions:
   contents: write
 
 on:
-  # Trial 07:47 China time for delivery around 11:00; send immediately after generation
+  # Trial 07:56 China time for delivery around 11:00; send immediately after generation
   schedule:
-    - cron: '47 7 * * *'
+    - cron: '56 7 * * *'
       timezone: 'Asia/Shanghai'
   
   # Allow manual trigger

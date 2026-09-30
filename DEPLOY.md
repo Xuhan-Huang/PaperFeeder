@@ -84,8 +84,8 @@ name: Daily Paper Digest
 
 on:
   schedule:
-    # Trial 07:47 Beijing time; send when report generation completes
-    - cron: '47 7 * * *'
+    # Trial 07:56 Beijing time; send when report generation completes
+    - cron: '56 7 * * *'
       timezone: 'Asia/Shanghai'
   workflow_dispatch:  # Allow manual trigger
 
@@ -330,7 +330,7 @@ Or use a scheduler container like [ofelia](https://github.com/mcuadros/ofelia).
 
 ### Email Delivery
 
-Daily generation is triggered at 07:47 Asia/Shanghai as a trial targeting arrival around
+Daily generation is triggered at 07:56 Asia/Shanghai as a trial targeting arrival around
 11:00. Daily and manual runs send through Resend immediately after generation.
 Dry runs never call Resend. The runner does not wait, and requests omit `scheduled_at`.
 Arrival time depends on GitHub scheduling, generation time, and email delivery; 11:00 is
@@ -346,15 +346,18 @@ Matching Monday-Saturday across the two weeks, submissions shifted later by an a
 that moving 07:13 to 09:03 would preserve scheduling delay and yield 11:00 delivery
 did not hold.
 
-Starting September 27, the next trial uses 07:47, with an initial review after the
-September 27-29 runs. An offline Gaussian-process model of 19 normal immediate digests
-across four trigger times selected 07:47 using noisy expected improvement toward an
-11:00 target, with equal penalties for early and late submission. The model includes
-uncertainty shared within each historical period and averages over alternative priors.
-Trigger time and calendar period remain confounded, so this is an experimental choice,
-not a calibrated arrival prediction. Do not treat the current five-hour scheduler delay
-as a constant across trigger times. Keep the model and generation settings fixed, then
-compare scheduler delay, generation time, and delivery status after three runs. Resend
+The September 27-30 trial used 07:47. All four normal digests were delivered, with
+Resend submissions at 10:04-10:55, averaging about 35 minutes before the 11:00 target.
+Updating the offline Gaussian-process model to 23 normal immediate digests across five
+trigger times selected 07:56 using model-averaged noisy expected improvement, with
+equal penalties for early and late submission. The model includes uncertainty shared
+within each historical period and averages over alternative priors. Trigger time and
+calendar period remain confounded, so this is an experimental choice, not a calibrated
+arrival prediction. Do not treat scheduler delay as constant across trigger times.
+
+Starting October 1, the next trial uses 07:56, with an initial review after the
+October 1-3 runs. Keep the model and generation settings fixed, then compare scheduler
+delay, generation time, and delivery status after three runs. Resend
 `created_at` measures request acceptance, not the recipient's exact inbox time. The
 trial does not revert automatically or create a monitoring task. A local commit must
 be pushed to the default branch to affect Actions.
@@ -373,7 +376,7 @@ before sending as before. No additional secrets or scheduler are required.
 
 ### 2. Cost Optimization
 
-Daily generation is scheduled for 07:47 Asia/Shanghai, with immediate Resend delivery.
+Daily generation is scheduled for 07:56 Asia/Shanghai, with immediate Resend delivery.
 The default paper count passed to synthesis is 8, with up to 18,000 evidence characters
 per paper. Coarse filtering still selects up to 20 candidates; enrichment and fine-ranking
 costs are not reduced by this limit. A manual `max_papers=10` workflow input allows a
